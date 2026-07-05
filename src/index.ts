@@ -1,7 +1,7 @@
 import * as admin from 'firebase-admin'
 import * as functions from 'firebase-functions'
 
-admin.initializeApp()
+if (!admin.apps.length) admin.initializeApp()
 const db = admin.firestore()
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -75,8 +75,8 @@ export const getProducts = functions
   .https.onCall(async (_data, _context) => {
     const snap = await db
       .collection('products')
-      .where('isActive', '==', true)
-      .orderBy('roi', 'desc')
+      .where('status', '==', 'active')
+      .orderBy('createdAt', 'desc')
       .limit(20)
       .get()
 
@@ -109,3 +109,13 @@ export const registerFcmToken = functions
     await db.collection('users').doc(uid).update({ fcmToken: token })
     return { success: true }
   })
+
+// ─── Payments (PawaPay) ───────────────────────────────────────────────────────
+
+export { initiateDeposit }  from './payments/initiateDeposit'
+export { getDepositStatus } from './payments/getDepositStatus'
+export { pawapayWebhook }   from './payments/pawapayWebhook'
+
+// ─── Investments ─────────────────────────────────────────────────────────────
+
+export { createInvestment } from './investments/createInvestment'
