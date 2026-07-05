@@ -112,9 +112,19 @@ export const registerFcmToken = functions
 
 // ─── Payments (PawaPay) ───────────────────────────────────────────────────────
 
-export { initiateDeposit }  from './payments/initiateDeposit'
-export { getDepositStatus } from './payments/getDepositStatus'
-export { pawapayWebhook }   from './payments/pawapayWebhook'
+export { initiateDeposit }       from './payments/initiateDeposit'
+export { getDepositStatus }      from './payments/getDepositStatus'
+export { pawapayWebhook }        from './payments/pawapayWebhook'
+export { initiateWithdraw }      from './payments/initiateWithdraw'
+export { getWithdrawStatus }     from './payments/getWithdrawStatus'
+export { pawapayPayoutWebhook }  from './payments/pawapayPayoutWebhook'
+export { pawapayRefundWebhook }  from './payments/pawapayRefundWebhook'
+
+// ─── Product admin ───────────────────────────────────────────────────────────
+
+export { createProduct }       from './products/createProduct'
+export { updateProductStatus } from './products/updateProductStatus'
+export { getProductsAdmin }    from './products/getProductsAdmin'
 
 // ─── Investments ─────────────────────────────────────────────────────────────
 
