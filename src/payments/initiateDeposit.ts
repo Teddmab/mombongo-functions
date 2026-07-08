@@ -3,11 +3,15 @@ import { admin, db, functions } from '../lib/admin'
 
 const PAWAPAY_BASE = 'https://api.sandbox.pawapay.io'
 
+// PawaPay DRC correspondent codes (all settle in CDF)
 const OPERATOR_MAP: Record<string, string> = {
-  mpesa:  'MPESA_DRC',
-  airtel: 'AIRTEL_DRC',
-  orange: 'ORANGE_DRC',
+  mpesa:  'VODACOM_MPESA_COD',
+  airtel: 'AIRTEL_COD',
+  orange: 'ORANGE_COD',
 }
+
+// Fixed USD→CDF rate used for PawaPay submissions (wallet always stored in USD)
+const USD_TO_CDF = 2800
 
 export const initiateDeposit = functions
   .runWith({ secrets: ['PAWAPAY_API_KEY'] })
@@ -33,12 +37,14 @@ export const initiateDeposit = functions
 
     const depositId = crypto.randomUUID()
     const apiKey = process.env.PAWAPAY_API_KEY
+    const amountCdf = Math.round(amountUsd * USD_TO_CDF)
 
     await db.collection('deposits').doc(depositId).set({
       userId: uid,
       depositId,
       amountUsd,
-      currency: 'USD',
+      amountCdf,
+      currency: 'CDF',
       phone,
       operator,
       correspondent,
@@ -47,14 +53,15 @@ export const initiateDeposit = functions
     })
 
     const response = await axios.post(
-      `${PAWAPAY_BASE}/deposits`,
+      `${PAWAPAY_BASE}/v1/deposits`,
       {
         depositId,
-        amount: String(amountUsd),
-        currency: 'USD',
+        amount: String(amountCdf),
+        currency: 'CDF',
         correspondent,
-        payer: { type: 'MSISDN', address: { value: phone } },
-        statementDescription: 'Dépôt Mombongo',
+        payer: { type: 'MSISDN', address: { value: phone.replace(/\D/g, '') } },
+        customerTimestamp: new Date().toISOString(),
+        statementDescription: 'Depot Mombongo',
       },
       { headers: { Authorization: `Bearer ${apiKey}` } }
     )

@@ -2,11 +2,16 @@ import axios from 'axios'
 import { admin, db, functions } from '../lib/admin'
 
 const PAWAPAY_BASE = 'https://api.sandbox.pawapay.io'
+
+// PawaPay DRC correspondent codes (all settle in CDF)
 const OPERATOR_MAP: Record<string, string> = {
-  mpesa:  'MPESA_DRC',
-  airtel: 'AIRTEL_DRC',
-  orange: 'ORANGE_DRC',
+  mpesa:  'VODACOM_MPESA_COD',
+  airtel: 'AIRTEL_COD',
+  orange: 'ORANGE_COD',
 }
+
+// Fixed USD→CDF rate used for PawaPay submissions (wallet always stored in USD)
+const USD_TO_CDF = 2800
 
 export const initiateWithdraw = functions
   .runWith({ secrets: ['PAWAPAY_API_KEY'] })
@@ -31,6 +36,7 @@ export const initiateWithdraw = functions
     const payoutId = crypto.randomUUID()
     const userRef = db.collection('users').doc(uid)
     const withdrawRef = db.collection('withdrawals').doc(payoutId)
+    const amountCdf = Math.round(amountUsd * USD_TO_CDF)
 
     // Atomically check balance and reserve funds
     await db.runTransaction(async tx => {
@@ -50,7 +56,8 @@ export const initiateWithdraw = functions
         userId: uid,
         payoutId,
         amountUsd,
-        currency: 'USD',
+        amountCdf,
+        currency: 'CDF',
         phone,
         operator,
         correspondent,
@@ -62,13 +69,14 @@ export const initiateWithdraw = functions
     // Call PawaPay payouts API
     try {
       const response = await axios.post(
-        `${PAWAPAY_BASE}/payouts`,
+        `${PAWAPAY_BASE}/v1/payouts`,
         {
           payoutId,
-          amount: String(amountUsd),
-          currency: 'USD',
+          amount: String(amountCdf),
+          currency: 'CDF',
           correspondent,
-          recipient: { type: 'MSISDN', address: { value: phone } },
+          recipient: { type: 'MSISDN', address: { value: phone.replace(/\D/g, '') } },
+          customerTimestamp: new Date().toISOString(),
           statementDescription: 'Retrait Mombongo',
         },
         { headers: { Authorization: `Bearer ${process.env.PAWAPAY_API_KEY}` } }
