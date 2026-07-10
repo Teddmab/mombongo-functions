@@ -95,6 +95,108 @@ export const getProduct = functions
     return { product }
   })
 
+// ─── Wallet history ──────────────────────────────────────────────────────────
+
+const TX_LABELS: Record<string, string> = {
+  deposit: 'Dépôt Wallet',
+  withdrawal: 'Retrait Wallet',
+  investment: 'Investissement',
+  profit: 'Profit distribué',
+  fee: 'Frais',
+}
+
+function formatTxDate(ts: admin.firestore.Timestamp | Date | undefined): string {
+  if (!ts) return ''
+  const d = ts instanceof admin.firestore.Timestamp ? ts.toDate() : ts
+  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+export const getTransactions = functions
+  .region('europe-west1')
+  .https.onCall(async (data, context) => {
+    const uid = context.auth?.uid
+    if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Login required')
+
+    const { limit = 30 } = (data ?? {}) as { limit?: number }
+
+    const snap = await db
+      .collection('transactions')
+      .where('userId', '==', uid)
+      .orderBy('createdAt', 'desc')
+      .limit(Math.min(limit, 50))
+      .get()
+
+    const transactions = snap.docs.map(doc => {
+      const d = doc.data()
+      const type = (d.type as string) ?? 'fee'
+      const productName = d.productName as string | undefined
+      const label =
+        productName && type === 'investment'
+          ? `Investissement — ${productName}`
+          : productName && type === 'profit'
+            ? `Profit — ${productName}`
+            : TX_LABELS[type] ?? type
+
+      return {
+        id: doc.id,
+        kind: type === 'withdraw' ? 'withdrawal' : type,
+        label,
+        amount: d.amountUsd ?? 0,
+        currency: 'USD' as const,
+        date: formatTxDate(d.createdAt),
+        status: (d.status as string) ?? 'completed',
+      }
+    })
+
+    return { transactions }
+  })
+
+export const getInvestments = functions
+  .region('europe-west1')
+  .https.onCall(async (_data, context) => {
+    const uid = context.auth?.uid
+    if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Login required')
+
+    const snap = await db
+      .collection('investments')
+      .where('investorId', '==', uid)
+      .orderBy('investedAt', 'desc')
+      .limit(20)
+      .get()
+
+    const now = Date.now()
+    const investments = snap.docs.map(doc => {
+      const d = doc.data()
+      const harvestTs = d.harvestDate as admin.firestore.Timestamp | undefined
+      const harvestDate = harvestTs
+        ? harvestTs.toDate().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+        : ''
+      const investedTs = d.investedAt as admin.firestore.Timestamp | undefined
+      const investedMs = investedTs?.toMillis() ?? now
+      const harvestMs = harvestTs?.toMillis() ?? investedMs
+      const totalDays = Math.max(1, Math.round((harvestMs - investedMs) / 86_400_000))
+      const daysLeft = Math.max(0, Math.ceil((harvestMs - now) / 86_400_000))
+      const elapsed = totalDays - daysLeft
+      const progress = Math.min(100, Math.round((elapsed / totalDays) * 100))
+
+      return {
+        id: doc.id,
+        productId: d.productId ?? '',
+        name: d.productName ?? 'Investissement',
+        location: d.location ?? '',
+        amount: d.amountUsd ?? 0,
+        currency: 'USD' as const,
+        roi: d.roi ?? 0,
+        progress,
+        daysLeft,
+        harvestDate,
+        category: d.category ?? 'agriculture',
+      }
+    })
+
+    return { investments }
+  })
+
 // ─── FCM ─────────────────────────────────────────────────────────────────────
 
 export const registerFcmToken = functions
