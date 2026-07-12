@@ -1,7 +1,9 @@
 import axios from 'axios'
 import { admin, db, functions } from '../lib/admin'
 
-const PAWAPAY_BASE = 'https://api.sandbox.pawapay.io'
+const PAWAPAY_BASE = process.env.PAWAPAY_ENV === 'sandbox'
+  ? 'https://api.sandbox.pawapay.io'
+  : 'https://api.pawapay.cloud'
 
 // PawaPay DRC correspondent codes (all settle in CDF)
 const OPERATOR_MAP: Record<string, string> = {
@@ -52,24 +54,34 @@ export const initiateDeposit = functions
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     })
 
-    const response = await axios.post(
-      `${PAWAPAY_BASE}/v1/deposits`,
-      {
-        depositId,
-        amount: String(amountCdf),
-        currency: 'CDF',
-        correspondent,
-        payer: { type: 'MSISDN', address: { value: phone.replace(/\D/g, '') } },
-        customerTimestamp: new Date().toISOString(),
-        statementDescription: 'Depot Mombongo',
-      },
-      { headers: { Authorization: `Bearer ${apiKey}` } }
-    )
+    let response
+    try {
+      response = await axios.post(
+        `${PAWAPAY_BASE}/v1/deposits`,
+        {
+          depositId,
+          amount: String(amountCdf),
+          currency: 'CDF',
+          correspondent,
+          payer: { type: 'MSISDN', address: { value: phone.replace(/\D/g, '') } },
+          customerTimestamp: new Date().toISOString(),
+          statementDescription: 'Depot Mombongo',
+        },
+        { headers: { Authorization: `Bearer ${apiKey}` } }
+      )
+    } catch (err: any) {
+      await db.collection('deposits').doc(depositId).update({ status: 'failed' })
+      const status = err?.response?.status
+      if (status === 401) {
+        throw new functions.https.HttpsError('internal', 'PawaPay API key invalide ou expiré.')
+      }
+      throw new functions.https.HttpsError('internal', `Erreur PawaPay (${status ?? 'réseau'}). Réessayez.`)
+    }
 
     if (response.data.status !== 'ACCEPTED') {
       await db.collection('deposits').doc(depositId).update({ status: 'failed' })
       const code = response.data.rejectionReason?.rejectionCode ?? 'unknown'
-      throw new functions.https.HttpsError('internal', `PawaPay rejected: ${code}`)
+      throw new functions.https.HttpsError('internal', `PawaPay rejeté: ${code}`)
     }
 
     return { depositId, status: 'ACCEPTED' }
