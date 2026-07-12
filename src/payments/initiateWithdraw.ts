@@ -1,7 +1,9 @@
 import axios from 'axios'
 import { admin, db, functions } from '../lib/admin'
 
-const PAWAPAY_BASE = 'https://api.sandbox.pawapay.io'
+const PAWAPAY_BASE = process.env.PAWAPAY_ENV === 'sandbox'
+  ? 'https://api.sandbox.pawapay.io'
+  : 'https://api.pawapay.cloud'
 
 // PawaPay DRC correspondent codes (all settle in CDF)
 const OPERATOR_MAP: Record<string, string> = {
