@@ -112,6 +112,7 @@ export const registerFcmToken = functions
 
 // ─── Payments (PawaPay) ───────────────────────────────────────────────────────
 
+export { processWalletPayment }  from './payments/processWalletPayment'
 export { initiateDeposit }       from './payments/initiateDeposit'
 export { getDepositStatus }      from './payments/getDepositStatus'
 export { pawapayWebhook }        from './payments/pawapayWebhook'
