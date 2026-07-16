@@ -130,3 +130,62 @@ export { getProductsAdmin }    from './products/getProductsAdmin'
 // ─── Investments ─────────────────────────────────────────────────────────────
 
 export { createInvestment } from './investments/createInvestment'
+
+export const getInvestments = functions
+  .region('europe-west1')
+  .https.onCall(async (_data, context) => {
+    const uid = context.auth?.uid
+    if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Login required')
+
+    const snap = await db
+      .collection('investments')
+      .where('investorId', '==', uid)
+      .orderBy('investedAt', 'desc')
+      .limit(50)
+      .get()
+
+    const investments = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    return { investments }
+  })
+
+// ─── Bourse ──────────────────────────────────────────────────────────────────
+
+export const getBourseOpportunities = functions
+  .region('europe-west1')
+  .https.onCall(async (_data, _context) => {
+    const snap = await db
+      .collection('bourse_opportunities')
+      .where('status', '==', 'open')
+      .orderBy('departureDate', 'asc')
+      .limit(20)
+      .get()
+
+    const opportunities = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    return { opportunities }
+  })
+
+export const getBoursePrices = functions
+  .region('europe-west1')
+  .https.onCall(async (_data, _context) => {
+    const snap = await db
+      .collection('bourse_prices')
+      .orderBy('recordedAt', 'desc')
+      .limit(40)
+      .get()
+
+    const prices = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    return { prices }
+  })
+
+export const getBourseOpportunity = functions
+  .region('europe-west1')
+  .https.onCall(async (data, _context) => {
+    const { id } = data as { id: string }
+    if (!id) throw new functions.https.HttpsError('invalid-argument', 'id required')
+
+    const snap = await db.collection('bourse_opportunities').doc(id).get()
+    const opportunity = snap.exists ? { id: snap.id, ...snap.data() } : null
+    return { opportunity }
+  })
+
+export { createBourseInvestment } from './bourse/createBourseInvestment'
