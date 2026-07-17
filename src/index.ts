@@ -291,3 +291,53 @@ export const getBourseOpportunity = functions
   })
 
 export { createBourseInvestment } from './bourse/createBourseInvestment'
+
+// ─── Financing ────────────────────────────────────────────────────────────────
+
+export const getFarmers = functions
+  .region('europe-west1')
+  .https.onCall(async (data, _context) => {
+    const { cropType, region, status } = (data ?? {}) as {
+      cropType?: string
+      region?: string
+      status?: string
+    }
+
+    let query = db
+      .collection('farmers')
+      .where('status', 'in', status ? [status] : ['approved', 'active'])
+      .orderBy('createdAt', 'desc')
+      .limit(50) as FirebaseFirestore.Query
+
+    if (cropType) query = query.where('cropType', '==', cropType)
+    if (region)   query = query.where('region', '==', region)
+
+    const snap = await query.get()
+    const farmers = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    return { farmers }
+  })
+
+export const getFarmer = functions
+  .region('europe-west1')
+  .https.onCall(async (data, _context) => {
+    const { id } = data as { id: string }
+    if (!id) throw new functions.https.HttpsError('invalid-argument', 'id required')
+
+    const snap = await db.collection('farmers').doc(id).get()
+    return { farmer: snap.exists ? { id: snap.id, ...snap.data() } : null }
+  })
+
+export const getCulturalEvents = functions
+  .region('europe-west1')
+  .https.onCall(async (data, _context) => {
+    const { cropType } = (data ?? {}) as { cropType?: string }
+
+    let query = db.collection('cultural_events').orderBy('monthStart', 'asc') as FirebaseFirestore.Query
+    if (cropType) query = query.where('cropType', '==', cropType)
+
+    const snap = await query.get()
+    return { events: snap.docs.map(d => ({ id: d.id, ...d.data() })) }
+  })
+
+export { createFinancingApplication } from './financing/createFinancingApplication'
+export { submitAgentReport } from './financing/submitAgentReport'
