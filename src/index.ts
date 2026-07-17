@@ -239,3 +239,55 @@ export const getCulturalEvents = functions
 
 export { createFinancingApplication } from './financing/createFinancingApplication'
 export { submitAgentReport } from './financing/submitAgentReport'
+
+export const getMyFinancingApplications = functions
+  .region('europe-west1')
+  .https.onCall(async (_data, context) => {
+    const uid = context.auth?.uid
+    if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Login required')
+
+    const snap = await db
+      .collection('financing_applications')
+      .where('investorId', '==', uid)
+      .orderBy('createdAt', 'desc')
+      .limit(50)
+      .get()
+
+    return { applications: snap.docs.map(d => ({ id: d.id, ...d.data() })) }
+  })
+
+export const getAgentFarmers = functions
+  .region('europe-west1')
+  .https.onCall(async (_data, context) => {
+    const uid = context.auth?.uid
+    if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Login required')
+
+    const snap = await db
+      .collection('farmers')
+      .where('agentId', '==', uid)
+      .orderBy('status', 'asc')
+      .limit(100)
+      .get()
+
+    return { farmers: snap.docs.map(d => ({ id: d.id, ...d.data() })) }
+  })
+
+export const getAgentReportUploadUrl = functions
+  .region('europe-west1')
+  .https.onCall(async (data, context) => {
+    const uid = context.auth?.uid
+    if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Login required')
+
+    const { filename, contentType } = data as { filename: string; contentType: string }
+    if (!contentType.startsWith('image/'))
+      throw new functions.https.HttpsError('invalid-argument', 'Images only')
+
+    const path = `agent_reports/${uid}/${Date.now()}-${filename}`
+    const [uploadUrl] = await admin.storage().bucket().file(path).getSignedUrl({
+      action: 'write',
+      expires: Date.now() + 5 * 60 * 1000,
+      contentType,
+    })
+
+    return { uploadUrl, path }
+  })
