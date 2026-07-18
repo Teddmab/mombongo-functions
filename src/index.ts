@@ -393,3 +393,68 @@ export const getAgentReportUploadUrl = functions
 
     return { uploadUrl, path }
   })
+
+// ─── Academia ─────────────────────────────────────────────────────────────────
+
+export const getCourses = functions
+  .region('europe-west1')
+  .https.onCall(async (data, _context) => {
+    const { category } = (data ?? {}) as { category?: string }
+
+    let query = db
+      .collection('courses')
+      .where('status', '==', 'published')
+      .orderBy('createdAt', 'desc')
+      .limit(30) as FirebaseFirestore.Query
+
+    if (category) query = query.where('category', '==', category)
+
+    const snap = await query.get()
+    return { courses: snap.docs.map(d => ({ id: d.id, ...d.data() })) }
+  })
+
+export const getCourse = functions
+  .region('europe-west1')
+  .https.onCall(async (data, _context) => {
+    const { id } = data as { id: string }
+    if (!id) throw new functions.https.HttpsError('invalid-argument', 'id required')
+
+    const snap = await db.collection('courses').doc(id).get()
+    return { course: snap.exists ? { id: snap.id, ...snap.data() } : null }
+  })
+
+export const getCourseModules = functions
+  .region('europe-west1')
+  .https.onCall(async (data, _context) => {
+    const { courseId } = data as { courseId: string }
+    if (!courseId) throw new functions.https.HttpsError('invalid-argument', 'courseId required')
+
+    const snap = await db
+      .collection('courses').doc(courseId)
+      .collection('modules')
+      .orderBy('order', 'asc')
+      .get()
+
+    return { modules: snap.docs.map(d => ({ id: d.id, ...d.data() })) }
+  })
+
+export const getMyEnrollment = functions
+  .region('europe-west1')
+  .https.onCall(async (data, context) => {
+    const uid = context.auth?.uid
+    if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Login required')
+
+    const { courseId } = data as { courseId: string }
+    if (!courseId) throw new functions.https.HttpsError('invalid-argument', 'courseId required')
+
+    const snap = await db.collection('enrollments')
+      .where('userId', '==', uid)
+      .where('courseId', '==', courseId)
+      .limit(1)
+      .get()
+
+    return { enrollment: snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() } }
+  })
+
+export { enrollCourse }       from './academia/enrollCourse'
+export { markModuleComplete } from './academia/markModuleComplete'

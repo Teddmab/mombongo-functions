@@ -1,10 +1,73 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // All reads/writes go through Cloud Functions (Admin SDK bypasses rules)
-    // Direct client access is blocked — frontend never calls Firestore directly
+
+    // Helper — requires custom claim set by admin CF
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    // Blanket deny — all direct client access is blocked by default.
+    // Cloud Functions use Admin SDK which bypasses these rules entirely.
+    // Specific allow rules below override this for their paths.
     match /{document=**} {
       allow read, write: if false;
+    }
+
+    // ── Bourse ───────────────────────────────────────────────────────────────
+    match /bourse_opportunities/{id} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    match /bourse_prices/{id} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // ── Financing ─────────────────────────────────────────────────────────────
+    match /farmers/{farmerId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    match /financing_applications/{appId} {
+      allow read: if request.auth != null
+        && (resource.data.investorId == request.auth.uid || isAdmin());
+      allow create: if request.auth != null
+        && request.resource.data.investorId == request.auth.uid;
+      allow update: if isAdmin();
+    }
+
+    match /agent_reports/{reportId} {
+      allow read: if isAdmin();
+      allow create: if request.auth != null
+        && request.resource.data.agentId == request.auth.uid;
+    }
+
+    match /cultural_events/{eventId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── Academia ──────────────────────────────────────────────────────────────
+    match /courses/{courseId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /modules/{moduleId} {
+        allow read: if request.auth != null;
+        allow write: if isAdmin();
+      }
+    }
+
+    match /enrollments/{enrollmentId} {
+      allow read: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null
+        && resource.data.userId == request.auth.uid;
     }
   }
 }
