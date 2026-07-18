@@ -49,5 +49,25 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    // ── Academia ──────────────────────────────────────────────────────────────
+    match /courses/{courseId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /modules/{moduleId} {
+        allow read: if request.auth != null;
+        allow write: if isAdmin();
+      }
+    }
+
+    match /enrollments/{enrollmentId} {
+      allow read: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+    }
   }
 }
