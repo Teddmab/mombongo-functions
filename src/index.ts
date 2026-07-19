@@ -212,16 +212,33 @@ export const registerFcmToken = functions
     return { success: true }
   })
 
-// ─── Payments (PawaPay) ───────────────────────────────────────────────────────
+// ─── Payments ────────────────────────────────────────────────────────────────
 
-export { processWalletPayment }  from './payments/processWalletPayment'
-export { initiateDeposit }       from './payments/initiateDeposit'
-export { getDepositStatus }      from './payments/getDepositStatus'
-export { pawapayWebhook }        from './payments/pawapayWebhook'
-export { initiateWithdraw }      from './payments/initiateWithdraw'
-export { getWithdrawStatus }     from './payments/getWithdrawStatus'
-export { pawapayPayoutWebhook }  from './payments/pawapayPayoutWebhook'
+export { processWalletPayment }        from './payments/processWalletPayment'
+export { initiateDeposit }             from './payments/initiateDeposit'
+export { getDepositStatus }            from './payments/getDepositStatus'
+export { pawapayWebhook }              from './payments/pawapayWebhook'
+export { initiateWithdraw }            from './payments/initiateWithdraw'
+export { getWithdrawStatus }           from './payments/getWithdrawStatus'
+export { pawapayPayoutWebhook }        from './payments/pawapayPayoutWebhook'
+export { createStripePaymentIntent }   from './payments/createStripePaymentIntent'
+export { stripeWebhook }               from './payments/stripeWebhook'
+
+// ─── Push Notifications (FCM triggers) ────────────────────────────────────────
+
+export {
+  onInvestmentCreated,
+  onBourseInvestmentCreated,
+  onDepositCompleted,
+  onFinancingStatusChanged,
+  onHarvestDue,
+} from './notifications/triggers'
 export { pawapayRefundWebhook }  from './payments/pawapayRefundWebhook'
+
+// ─── Admin operations ────────────────────────────────────────────────────────
+
+export { setUserRole } from './admin/setUserRole'
+export { disableUser } from './admin/disableUser'
 
 // ─── Product admin ───────────────────────────────────────────────────────────
 
