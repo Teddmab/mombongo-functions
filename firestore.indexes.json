@@ -4,7 +4,7 @@
       "collectionGroup": "products",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "status",    "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },
@@ -13,7 +13,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "isActive", "order": "ASCENDING" },
-        { "fieldPath": "roi", "order": "DESCENDING" }
+        { "fieldPath": "roi",      "order": "DESCENDING" }
       ]
     },
     {
@@ -22,6 +22,46 @@
       "fields": [
         { "fieldPath": "investorId", "order": "ASCENDING" },
         { "fieldPath": "investedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "bourse_investments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "investorId", "order": "ASCENDING" },
+        { "fieldPath": "investedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "financing_applications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "investorId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt",  "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "transactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId",    "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "bourse_prices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "productName", "order": "ASCENDING" },
+        { "fieldPath": "recordedAt",  "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "enrollments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId",   "order": "ASCENDING" },
+        { "fieldPath": "courseId", "order": "ASCENDING" }
       ]
     }
   ],
