@@ -341,6 +341,7 @@ export const getCulturalEvents = functions
 
 export { createFinancingApplication } from './financing/createFinancingApplication'
 export { submitAgentReport } from './financing/submitAgentReport'
+export { submitUserAction } from './marketplace/submitUserAction'
 
 export const getMyFinancingApplications = functions
   .region('europe-west1')
