@@ -205,7 +205,13 @@ export const getBourseOpportunity = functions
     return { opportunity }
   })
 
-export { createBourseInvestment } from './bourse/createBourseInvestment'
+export { createBourseInvestment }      from './bourse/createBourseInvestment'
+
+// ─── Agro Exchange (S8) ──────────────────────────────────────────────────────
+
+export { getProductListings, getMyProductListings } from './bourse/getProductListings'
+export { getBuyerOrders }                            from './bourse/getBuyerOrders'
+export { getBoursePricesByProvince }                 from './bourse/getBoursePricesByProvince'
 
 // ─── Financing ────────────────────────────────────────────────────────────────
 
