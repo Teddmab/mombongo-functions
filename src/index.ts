@@ -212,6 +212,17 @@ export { createBourseInvestment }      from './bourse/createBourseInvestment'
 export { getProductListings, getMyProductListings } from './bourse/getProductListings'
 export { getBuyerOrders }                            from './bourse/getBuyerOrders'
 export { getBoursePricesByProvince }                 from './bourse/getBoursePricesByProvince'
+export { createProductListing }                      from './bourse/createProductListing'
+export { getListingPhotoUploadUrl }                  from './bourse/getListingPhotoUploadUrl'
+export { createBuyerOrder }                          from './bourse/createBuyerOrder'
+export { getMatches }                                from './bourse/getMatches'
+export { proposePrice }                              from './bourse/proposePrice'
+export { acceptPrice }                               from './bourse/acceptPrice'
+export { generateContract }                          from './bourse/generateContract'
+export { signContract }                              from './bourse/signContract'
+export { fundEscrow }                                from './bourse/fundEscrow'
+export { confirmShipment }                           from './bourse/confirmShipment'
+export { confirmDelivery }                           from './bourse/confirmDelivery'
 
 // ─── Financing ────────────────────────────────────────────────────────────────
 
