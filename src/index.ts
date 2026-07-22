@@ -390,3 +390,22 @@ export const getMyEnrollment = functions
 
 export { enrollCourse }       from './academia/enrollCourse'
 export { markModuleComplete } from './academia/markModuleComplete'
+
+// ─── Market Intelligence (S9) ────────────────────────────────────────────────
+
+export { getPriceHistory }              from './intelligence/getPriceHistory'
+export { scheduleDailyPriceSnapshot }   from './intelligence/scheduleDailyPriceSnapshot'
+export { getMarketStats }               from './intelligence/getMarketStats'
+export { createPriceAlert }             from './intelligence/createPriceAlert'
+export { cancelPriceAlert }             from './intelligence/cancelPriceAlert'
+export { getMyPriceAlerts }             from './intelligence/getMyPriceAlerts'
+export { checkPriceAlerts }             from './intelligence/checkPriceAlerts'
+
+// ─── Mon Exploitation (S10) ──────────────────────────────────────────────────
+
+export { getMyExploitation }             from './exploitation/getMyExploitation'
+export { saveMyExploitation }            from './exploitation/saveMyExploitation'
+export { getMyCultures }                 from './exploitation/getMyCultures'
+export { saveCulture }                   from './exploitation/saveCulture'
+export { deleteCulture }                 from './exploitation/deleteCulture'
+export { getExploitationPhotoUploadUrl } from './exploitation/getExploitationPhotoUploadUrl'
