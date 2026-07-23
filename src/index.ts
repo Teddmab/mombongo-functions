@@ -403,6 +403,7 @@ export { checkPriceAlerts }             from './intelligence/checkPriceAlerts'
 
 // ─── Mon Exploitation (S10) ──────────────────────────────────────────────────
 
+export { getMyExploitations }            from './exploitation/getMyExploitations'
 export { getMyExploitation }             from './exploitation/getMyExploitation'
 export { saveMyExploitation }            from './exploitation/saveMyExploitation'
 export { getMyCultures }                 from './exploitation/getMyCultures'
