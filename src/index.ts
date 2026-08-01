@@ -135,8 +135,9 @@ export { pawapayRefundWebhook }  from './payments/pawapayRefundWebhook'
 
 // ─── Admin operations ────────────────────────────────────────────────────────
 
-export { setUserRole } from './admin/setUserRole'
-export { disableUser } from './admin/disableUser'
+export { setUserRole }       from './admin/setUserRole'
+export { disableUser }       from './admin/disableUser'
+export { getDashboardKpis }  from './admin/getDashboardKpis'
 
 // ─── Product admin ───────────────────────────────────────────────────────────
 
