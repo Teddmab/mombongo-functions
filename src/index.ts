@@ -47,6 +47,7 @@ export const createUserProfile = functions
         referralCode: uid.slice(-6).toUpperCase(),
         referredBy: null,
         isActive: true,
+        termsAcceptedAt: admin.firestore.FieldValue.serverTimestamp(),
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       },
