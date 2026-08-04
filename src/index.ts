@@ -39,7 +39,7 @@ export const createUserProfile = functions
         preferredLanguage,
         avatarUrl,
         phone: '',
-        kycStatus: 'pending',
+        kycStatus: 'none',
         kycVerifiedAt: null,
         mobileMoneyNumber: null,
         mobileMoneyProvider: null,
@@ -428,3 +428,8 @@ export { getExploitationPhotoUploadUrl } from './exploitation/getExploitationPho
 
 export { getProfilePhotoUploadUrl } from './profile/getProfilePhotoUploadUrl'
 export { updateUserProfile }        from './profile/updateUserProfile'
+
+// ─── KYC ─────────────────────────────────────────────────────────────────────
+
+export { getKycUploadUrls }    from './kyc/getKycUploadUrls'
+export { submitKycDocuments }  from './kyc/submitKycDocuments'
