@@ -26,12 +26,16 @@ export const createUserProfile = functions
       avatarUrl?: string | null
     }
 
-    await db.collection('users').doc(uid).set(
-      {
+    const snap = await db.collection('users').doc(uid).get()
+
+    if (!snap.exists) {
+      // Brand-new user — write full profile
+      await db.collection('users').doc(uid).set({
         uid,
         fullName,
         email,
         role,
+        roles: [role],
         preferredLanguage,
         avatarUrl,
         phone: '',
@@ -50,11 +54,16 @@ export const createUserProfile = functions
         termsAcceptedAt: admin.firestore.FieldValue.serverTimestamp(),
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    )
+      })
+    } else {
+      // Existing user — only add the new role to the roles array; preserve everything else
+      await db.collection('users').doc(uid).update({
+        roles: admin.firestore.FieldValue.arrayUnion(role),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+    }
 
-    return { success: true }
+    return { success: true, isNew: !snap.exists }
   })
 
 export const getUserProfile = functions
@@ -66,7 +75,9 @@ export const getUserProfile = functions
     const snap = await db.collection('users').doc(uid).get()
     if (!snap.exists) return null
 
-    return { uid, ...snap.data() }
+    const data = snap.data()!
+    // Backfill `roles` for accounts created before multi-role support
+    return { uid, ...data, roles: data.roles ?? [data.role] }
   })
 
 // ─── Products ────────────────────────────────────────────────────────────────
@@ -412,3 +423,8 @@ export { getMyCultures }                 from './exploitation/getMyCultures'
 export { saveCulture }                   from './exploitation/saveCulture'
 export { deleteCulture }                 from './exploitation/deleteCulture'
 export { getExploitationPhotoUploadUrl } from './exploitation/getExploitationPhotoUploadUrl'
+
+// ─── Profile ──────────────────────────────────────────────────────────────────
+
+export { getProfilePhotoUploadUrl } from './profile/getProfilePhotoUploadUrl'
+export { updateUserProfile }        from './profile/updateUserProfile'
