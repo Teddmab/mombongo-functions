@@ -18,12 +18,22 @@ export const createUserProfile = functions
       role = 'investor',
       preferredLanguage = 'fr',
       avatarUrl = null,
+      phone = '',
+      province = null,
+      cropType = null,
+      businessType = null,
+      country = null,
     } = data as {
       fullName?: string
       email?: string
       role?: string
       preferredLanguage?: string
       avatarUrl?: string | null
+      phone?: string
+      province?: string | null
+      cropType?: string | null
+      businessType?: string | null
+      country?: string | null
     }
 
     const snap = await db.collection('users').doc(uid).get()
@@ -38,7 +48,11 @@ export const createUserProfile = functions
         roles: [role],
         preferredLanguage,
         avatarUrl,
-        phone: '',
+        phone,
+        province,
+        cropType,
+        businessType,
+        country,
         kycStatus: 'none',
         kycVerifiedAt: null,
         mobileMoneyNumber: null,
