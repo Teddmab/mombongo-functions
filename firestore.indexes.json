@@ -71,6 +71,57 @@
         { "fieldPath": "farmerId",  "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "product_listings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status",    "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "product_listings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status",    "order": "ASCENDING" },
+        { "fieldPath": "commodity", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "product_listings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sellerId",  "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "buyer_orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status",    "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "bourse_matches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "buyerId",   "order": "ASCENDING" },
+        { "fieldPath": "status",    "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "bourse_matches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sellerId",  "order": "ASCENDING" },
+        { "fieldPath": "status",    "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
