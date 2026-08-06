@@ -8,51 +8,80 @@ export const fundEscrow = functions
     const uid = context.auth?.uid
     if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Login required')
 
-    const { contractId } = data as { contractId: string }
+    const { contractId, method } = (data ?? {}) as {
+      contractId: string
+      method: 'wallet' | 'mobile_money'
+      phone?: string
+      operatorId?: string
+    }
+
+    if (!contractId) throw new functions.https.HttpsError('invalid-argument', 'contractId required')
+    if (method !== 'wallet') {
+      throw new functions.https.HttpsError(
+        'unimplemented',
+        'Mobile money escrow — sprint suivant',
+      )
+    }
 
     const contractRef = db.collection('bourse_contracts').doc(contractId)
-    const escrowRef = db.collection('escrow_accounts').doc(contractId)
-    const walletRef = db.collection('wallets').doc(uid)
+    const contractSnap = await contractRef.get()
+    if (!contractSnap.exists) throw new functions.https.HttpsError('not-found', 'Contrat introuvable')
 
-    await db.runTransaction(async tx => {
-      const [contractSnap, escrowSnap, walletSnap] = await Promise.all([
-        tx.get(contractRef),
-        tx.get(escrowRef),
-        tx.get(walletRef),
-      ])
+    const contract = contractSnap.data()!
+    if (contract.buyerId !== uid) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        "Seul l'acheteur peut financer le séquestre",
+      )
+    }
+    if (contract.status !== 'active') {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Contrat non signé par les deux parties',
+      )
+    }
+    if (contract.escrowStatus === 'funded') {
+      return { success: true, escrowStatus: 'funded', escrowId: contract.escrowId }
+    }
 
-      if (!contractSnap.exists) throw new functions.https.HttpsError('not-found', 'Contrat introuvable')
+    const amountCdf = contract.totalCdf as number
+    const now = admin.firestore.FieldValue.serverTimestamp()
 
-      const c = contractSnap.data()!
-      if (c.buyerId !== uid)
-        throw new functions.https.HttpsError('permission-denied', "Seul l'acheteur peut financer le sequestre")
-      if (c.status !== 'active')
-        throw new functions.https.HttpsError('failed-precondition', 'Contrat non actif')
-      if (escrowSnap.exists)
-        throw new functions.https.HttpsError('already-exists', 'Séquestre déjà financé')
+    const result = await db.runTransaction(async (tx) => {
+      const userRef = db.collection('users').doc(uid)
+      const [userSnap, freshContract] = await Promise.all([tx.get(userRef), tx.get(contractRef)])
+      const walletCdf: number = userSnap.data()?.walletCdf ?? 0
+      if (walletCdf < amountCdf) {
+        throw new functions.https.HttpsError('failed-precondition', 'Solde FC insuffisant')
+      }
+      if (freshContract.data()?.escrowStatus === 'funded') {
+        return {
+          success: true,
+          escrowStatus: 'funded' as const,
+          escrowId: freshContract.data()?.escrowId as string,
+        }
+      }
 
-      const walletCdf: number = walletSnap.data()?.balanceCdf ?? 0
-      if (walletCdf < c.totalCdf)
-        throw new functions.https.HttpsError('failed-precondition', 'Solde insuffisant')
-
-      const now = admin.firestore.FieldValue.serverTimestamp()
-
-      tx.update(walletRef, {
-        balanceCdf: admin.firestore.FieldValue.increment(-c.totalCdf),
-        updatedAt: now,
-      })
-
+      const escrowRef = db.collection('escrow_accounts').doc()
       tx.set(escrowRef, {
         contractId,
-        buyerId: c.buyerId,
-        sellerId: c.sellerId,
-        amountCdf: c.totalCdf,
-        status: 'held',
+        matchId: contract.matchId,
+        buyerId: uid,
+        sellerId: contract.sellerId,
+        amountCdf,
+        depositedAt: now,
+        status: 'funded',
+        method: 'wallet',
         createdAt: now,
       })
-
-      tx.update(contractRef, { status: 'funded', updatedAt: now })
+      tx.update(userRef, { walletCdf: admin.firestore.FieldValue.increment(-amountCdf) })
+      tx.update(contractRef, {
+        escrowId: escrowRef.id,
+        escrowStatus: 'funded',
+        updatedAt: now,
+      })
+      return { success: true, escrowStatus: 'funded' as const, escrowId: escrowRef.id }
     })
 
-    return { ok: true }
+    return result
   })

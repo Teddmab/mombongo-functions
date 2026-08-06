@@ -8,36 +8,69 @@ export const acceptPrice = functions
     const uid = context.auth?.uid
     if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Login required')
 
-    const { matchId, negotiationId } = data as { matchId: string; negotiationId: string }
+    const { matchId, negotiationId } = (data ?? {}) as {
+      matchId: string
+      negotiationId?: string
+    }
+
+    if (!matchId) throw new functions.https.HttpsError('invalid-argument', 'matchId required')
 
     const matchRef = db.collection('bourse_matches').doc(matchId)
-    const negRef = matchRef.collection('negotiations').doc(negotiationId)
+    const matchSnap = await matchRef.get()
+    if (!matchSnap.exists) throw new functions.https.HttpsError('not-found', 'Match introuvable')
 
-    await db.runTransaction(async tx => {
-      const [matchSnap, negSnap] = await Promise.all([tx.get(matchRef), tx.get(negRef)])
+    const match = matchSnap.data()!
+    if (match.sellerId !== uid && match.buyerId !== uid) {
+      throw new functions.https.HttpsError('permission-denied', 'Non autorisé')
+    }
+    if (match.status !== 'pending_negotiation') {
+      throw new functions.https.HttpsError('failed-precondition', 'Négociation fermée')
+    }
 
-      if (!matchSnap.exists) throw new functions.https.HttpsError('not-found', 'Match introuvable')
-      if (!negSnap.exists) throw new functions.https.HttpsError('not-found', 'Proposition introuvable')
+    let negRef = negotiationId
+      ? matchRef.collection('negotiations').doc(negotiationId)
+      : undefined
 
-      const matchData = matchSnap.data()!
-      const negData = negSnap.data()!
+    if (!negRef) {
+      const negsSnap = await matchRef
+        .collection('negotiations')
+        .orderBy('createdAt', 'desc')
+        .limit(1)
+        .get()
+      if (negsSnap.empty) {
+        throw new functions.https.HttpsError('failed-precondition', 'Aucune proposition')
+      }
+      negRef = negsSnap.docs[0].ref
+    }
 
-      if (matchData.buyerId !== uid && matchData.sellerId !== uid)
-        throw new functions.https.HttpsError('permission-denied', 'Non autorisé')
-      // Can't accept your own proposal
-      if (negData.proposedBy === uid)
-        throw new functions.https.HttpsError('failed-precondition', 'Vous ne pouvez pas accepter votre propre offre')
-      if (negData.status !== 'pending')
-        throw new functions.https.HttpsError('failed-precondition', 'Proposition déjà traitée')
+    const negSnap = await negRef.get()
+    if (!negSnap.exists) throw new functions.https.HttpsError('not-found', 'Proposition introuvable')
+    const lastProposal = negSnap.data()!
 
-      const now = admin.firestore.FieldValue.serverTimestamp()
-      tx.update(negRef, { status: 'accepted', acceptedAt: now })
+    if (lastProposal.proposedByUid === uid) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Vous ne pouvez pas accepter votre propre proposition',
+      )
+    }
+
+    const agreedPricePerKgCdf: number = lastProposal.proposedPricePerKgCdf
+    const totalCdf = agreedPricePerKgCdf * (match.quantityKg as number)
+    const now = admin.firestore.FieldValue.serverTimestamp()
+
+    await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(matchRef)
+      if (!fresh.exists || fresh.data()?.status !== 'pending_negotiation') {
+        throw new functions.https.HttpsError('failed-precondition', 'Négociation fermée')
+      }
+      tx.update(negRef!, { status: 'accepted' })
       tx.update(matchRef, {
         status: 'agreed',
-        agreedPricePerKgCdf: negData.proposedPricePerKgCdf,
+        agreedPricePerKgCdf,
+        totalCdf,
         updatedAt: now,
       })
     })
 
-    return { ok: true }
+    return { success: true, ok: true, agreedPricePerKgCdf, totalCdf }
   })

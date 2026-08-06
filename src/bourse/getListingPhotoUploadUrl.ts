@@ -1,3 +1,4 @@
+import { getStorage } from 'firebase-admin/storage'
 import { admin, functions } from '../lib/admin'
 
 const db = admin.firestore()
@@ -8,16 +9,24 @@ export const getListingPhotoUploadUrl = functions
     const uid = context.auth?.uid
     if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Login required')
 
-    const { listingId, fileName, contentType } = data as {
+    const { listingId, fileName, contentType } = (data ?? {}) as {
       listingId: string
       fileName: string
       contentType: string
     }
 
-    if (!contentType.startsWith('image/'))
-      throw new functions.https.HttpsError('invalid-argument', 'Images uniquement')
+    if (!listingId || !fileName || !contentType) {
+      throw new functions.https.HttpsError('invalid-argument', 'listingId, fileName, contentType required')
+    }
 
-    const bucket = admin.storage().bucket()
+    const listingRef = db.collection('product_listings').doc(listingId)
+    const listingSnap = await listingRef.get()
+    if (!listingSnap.exists) throw new functions.https.HttpsError('not-found', 'Listing introuvable')
+    if (listingSnap.data()?.sellerId !== uid) {
+      throw new functions.https.HttpsError('permission-denied', 'Non autorisé')
+    }
+
+    const bucket = getStorage().bucket()
     const filePath = `listings/${uid}/${listingId}/${Date.now()}-${fileName}`
     const file = bucket.file(filePath)
 
@@ -34,7 +43,7 @@ export const getListingPhotoUploadUrl = functions
       expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
     })
 
-    await db.collection('product_listings').doc(listingId).update({
+    await listingRef.update({
       photoUrls: admin.firestore.FieldValue.arrayUnion(readUrl),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     })

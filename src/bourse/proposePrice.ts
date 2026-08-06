@@ -8,43 +8,43 @@ export const proposePrice = functions
     const uid = context.auth?.uid
     if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Login required')
 
-    const { matchId, proposedPricePerKgCdf, message } = data as {
+    const { matchId, proposedPricePerKgCdf, message } = (data ?? {}) as {
       matchId: string
       proposedPricePerKgCdf: number
       message?: string
     }
 
-    if (!(proposedPricePerKgCdf > 0))
-      throw new functions.https.HttpsError('invalid-argument', 'Prix invalide')
+    if (!matchId || !proposedPricePerKgCdf || proposedPricePerKgCdf <= 0) {
+      throw new functions.https.HttpsError('invalid-argument', 'matchId and proposedPricePerKgCdf required')
+    }
 
     const matchRef = db.collection('bourse_matches').doc(matchId)
     const matchSnap = await matchRef.get()
     if (!matchSnap.exists) throw new functions.https.HttpsError('not-found', 'Match introuvable')
 
-    const matchData = matchSnap.data()!
-    if (matchData.buyerId !== uid && matchData.sellerId !== uid)
+    const match = matchSnap.data()!
+    if (match.sellerId !== uid && match.buyerId !== uid) {
       throw new functions.https.HttpsError('permission-denied', 'Non autorisé')
-    if (!['pending_negotiation', 'agreed'].includes(matchData.status))
-      throw new functions.https.HttpsError('failed-precondition', 'Statut invalide')
+    }
+    if (match.status !== 'pending_negotiation') {
+      throw new functions.https.HttpsError('failed-precondition', 'Négociation fermée')
+    }
 
-    const userSnap = await db.collection('users').doc(uid).get()
-    const proposerName: string = userSnap.data()?.fullName ?? 'Utilisateur'
-    const proposerRole: string = uid === matchData.buyerId ? 'buyer' : 'seller'
-
+    const proposedBy: 'seller' | 'buyer' = match.sellerId === uid ? 'seller' : 'buyer'
     const now = admin.firestore.FieldValue.serverTimestamp()
     const negRef = matchRef.collection('negotiations').doc()
 
     await negRef.set({
-      proposedBy: uid,
-      proposerName,
-      proposerRole,
+      proposedBy,
+      proposedByUid: uid,
+      proposerRole: proposedBy,
       proposedPricePerKgCdf,
       message: message ?? '',
       status: 'pending',
       createdAt: now,
     })
 
-    await matchRef.update({ status: 'pending_negotiation', updatedAt: now })
+    await matchRef.update({ updatedAt: now })
 
-    return { negotiationId: negRef.id }
+    return { negotiationId: negRef.id, success: true }
   })
