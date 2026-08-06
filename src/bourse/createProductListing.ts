@@ -9,9 +9,16 @@ export const createProductListing = functions
     if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Login required')
 
     const {
-      commodity, quantityKg, quality, province, territory,
-      pricePerKgCdf, availableFrom, availableUntil, description,
-    } = data as {
+      commodity,
+      quantityKg,
+      quality,
+      province,
+      territory,
+      pricePerKgCdf,
+      availableFrom,
+      availableUntil,
+      description,
+    } = (data ?? {}) as {
       commodity: string
       quantityKg: number
       quality: 'A' | 'B' | 'C'
@@ -23,13 +30,22 @@ export const createProductListing = functions
       description?: string
     }
 
-    if (!commodity) throw new functions.https.HttpsError('invalid-argument', 'commodity requis')
-    if (!(quantityKg > 0)) throw new functions.https.HttpsError('invalid-argument', 'Quantité invalide')
-    if (!(pricePerKgCdf > 0)) throw new functions.https.HttpsError('invalid-argument', 'Prix invalide')
+    if (!commodity || !province) {
+      throw new functions.https.HttpsError('invalid-argument', 'commodity and province required')
+    }
+    if (!quantityKg || quantityKg <= 0) {
+      throw new functions.https.HttpsError('invalid-argument', 'Quantité invalide')
+    }
+    if (!pricePerKgCdf || pricePerKgCdf <= 0) {
+      throw new functions.https.HttpsError('invalid-argument', 'Prix invalide')
+    }
+    if (!['A', 'B', 'C'].includes(quality)) {
+      throw new functions.https.HttpsError('invalid-argument', 'Qualité invalide')
+    }
 
     const userSnap = await db.collection('users').doc(uid).get()
-    const sellerName: string = userSnap.data()?.fullName ?? 'Vendeur'
-    const sellerRole: string = userSnap.data()?.role ?? 'farmer'
+    const sellerName = userSnap.data()?.displayName ?? 'Vendeur'
+    const sellerRole = userSnap.data()?.role ?? 'farmer'
 
     const ref = db.collection('product_listings').doc()
     const now = admin.firestore.FieldValue.serverTimestamp()
@@ -42,10 +58,10 @@ export const createProductListing = functions
       quantityKg,
       quality,
       province,
-      territory,
+      territory: territory ?? '',
       pricePerKgCdf,
-      availableFrom: new Date(availableFrom),
-      availableUntil: new Date(availableUntil),
+      availableFrom: availableFrom ? new Date(availableFrom) : now,
+      availableUntil: availableUntil ? new Date(availableUntil) : now,
       description: description ?? '',
       photoUrls: [],
       status: 'active',

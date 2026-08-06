@@ -9,9 +9,14 @@ export const createBuyerOrder = functions
     if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Login required')
 
     const {
-      commodity, quantityKg, maxPricePerKgCdf,
-      deliveryProvince, deliveryTerritory, neededBy, description,
-    } = data as {
+      commodity,
+      quantityKg,
+      maxPricePerKgCdf,
+      deliveryProvince,
+      deliveryTerritory,
+      neededBy,
+      description,
+    } = (data ?? {}) as {
       commodity: string
       quantityKg: number
       maxPricePerKgCdf: number
@@ -21,17 +26,24 @@ export const createBuyerOrder = functions
       description?: string
     }
 
-    if (!(quantityKg > 0)) throw new functions.https.HttpsError('invalid-argument', 'Quantité invalide')
-    if (!(maxPricePerKgCdf > 0)) throw new functions.https.HttpsError('invalid-argument', 'Prix invalide')
+    if (!commodity || !deliveryProvince) {
+      throw new functions.https.HttpsError('invalid-argument', 'commodity and deliveryProvince required')
+    }
+    if (!quantityKg || quantityKg <= 0) {
+      throw new functions.https.HttpsError('invalid-argument', 'Quantité invalide')
+    }
+    if (!maxPricePerKgCdf || maxPricePerKgCdf <= 0) {
+      throw new functions.https.HttpsError('invalid-argument', 'Prix max invalide')
+    }
 
     const userSnap = await db.collection('users').doc(uid).get()
-    const buyerName: string = userSnap.data()?.fullName ?? 'Acheteur'
-    const buyerRole: string = userSnap.data()?.role ?? 'merchant'
+    const buyerName = userSnap.data()?.displayName ?? 'Acheteur'
+    const buyerRole = userSnap.data()?.role ?? 'merchant'
 
+    const ref = db.collection('buyer_orders').doc()
     const now = admin.firestore.FieldValue.serverTimestamp()
-    const orderRef = db.collection('buyer_orders').doc()
 
-    await orderRef.set({
+    await ref.set({
       buyerId: uid,
       buyerName,
       buyerRole,
@@ -40,19 +52,21 @@ export const createBuyerOrder = functions
       maxPricePerKgCdf,
       deliveryProvince,
       deliveryTerritory: deliveryTerritory ?? '',
-      neededBy: new Date(neededBy),
+      neededBy: neededBy ? new Date(neededBy) : now,
       description: description ?? '',
       status: 'open',
       createdAt: now,
     })
 
-    // Auto-match: find active listings with same commodity at or below max price
-    const matchSnap = await db.collection('product_listings')
+    const matchSnap = await db
+      .collection('product_listings')
       .where('status', '==', 'active')
       .where('commodity', '==', commodity)
       .get()
 
-    const candidates = matchSnap.docs.filter(d => d.data().pricePerKgCdf <= maxPricePerKgCdf)
+    const candidates = matchSnap.docs.filter(
+      (d) => (d.data().pricePerKgCdf as number) <= maxPricePerKgCdf,
+    )
 
     if (candidates.length > 0) {
       const batch = db.batch()
@@ -60,11 +74,13 @@ export const createBuyerOrder = functions
         const matchRef = db.collection('bourse_matches').doc()
         batch.set(matchRef, {
           listingId: c.id,
-          orderId: orderRef.id,
+          orderId: ref.id,
           sellerId: c.data().sellerId,
           buyerId: uid,
           commodity,
-          quantityKg: Math.min(quantityKg, c.data().quantityKg),
+          quantityKg: Math.min(quantityKg, c.data().quantityKg as number),
+          sellerPricePerKgCdf: c.data().pricePerKgCdf,
+          buyerMaxPricePerKgCdf: maxPricePerKgCdf,
           status: 'pending_negotiation',
           createdAt: now,
           updatedAt: now,
@@ -73,5 +89,5 @@ export const createBuyerOrder = functions
       await batch.commit()
     }
 
-    return { orderId: orderRef.id, matchCount: candidates.length }
+    return { orderId: ref.id, matchCount: candidates.length }
   })

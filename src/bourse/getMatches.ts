@@ -8,24 +8,37 @@ export const getMatches = functions
     const uid = context.auth?.uid
     if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Login required')
 
-    const role: 'buyer' | 'seller' = (data as any)?.role ?? 'buyer'
+    const role: 'buyer' | 'seller' = (data?.role as 'buyer' | 'seller') ?? 'buyer'
     const field = role === 'buyer' ? 'buyerId' : 'sellerId'
 
-    const snap = await db.collection('bourse_matches')
+    const snap = await db
+      .collection('bourse_matches')
       .where(field, '==', uid)
-      .where('status', 'in', ['pending_negotiation', 'agreed', 'contracted'])
+      .where('status', 'in', [
+        'pending_negotiation',
+        'agreed',
+        'contracted',
+        'shipped',
+        'completed',
+      ])
       .orderBy('createdAt', 'desc')
       .limit(20)
       .get()
 
-    const matches = await Promise.all(snap.docs.map(async d => {
-      const matchData = { id: d.id, ...d.data() }
-      // Fetch last negotiation proposal
-      const negsSnap = await d.ref.collection('negotiations')
-        .orderBy('createdAt', 'desc').limit(3).get()
-      const negotiations = negsSnap.docs.map(n => ({ id: n.id, ...n.data() }))
-      return { ...matchData, negotiations }
-    }))
+    const matches = await Promise.all(
+      snap.docs.map(async (d) => {
+        const negs = await d.ref
+          .collection('negotiations')
+          .orderBy('createdAt', 'desc')
+          .limit(20)
+          .get()
+        return {
+          id: d.id,
+          ...d.data(),
+          negotiations: negs.docs.map((n) => ({ id: n.id, ...n.data() })),
+        }
+      }),
+    )
 
     return { matches }
   })
