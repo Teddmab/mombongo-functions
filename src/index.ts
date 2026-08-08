@@ -549,3 +549,16 @@ export { deactivateProductListing } from './bourse/deactivateProductListing'
 
 export { submitFinancingApplication }  from './financing/submitFinancingApplication'
 export { getMyFinancingApplications }  from './financing/getMyFinancingApplications'
+
+// ─── Investor Portfolio & History (SG-06) ────────────────────────────────────
+
+export { getPortfolioTrend }    from './portfolio/getPortfolioTrend'
+export { getMyActivity }        from './portfolio/getMyActivity'
+export { getMyTransactions }    from './portfolio/getMyTransactions'
+export { getMyBoursePositions } from './portfolio/getMyBoursePositions'
+export { getPortfolioBreakdown } from './portfolio/getPortfolioBreakdown'
+
+// ─── Investment Maturity & Repayment (SGN-05) ────────────────────────────────
+
+export { onInvestmentMatured } from './investments/onInvestmentMatured'
+export { repayInvestment }     from './investments/repayInvestment'
