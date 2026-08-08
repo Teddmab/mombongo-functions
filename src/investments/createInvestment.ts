@@ -39,16 +39,22 @@ export const createInvestment = functions
         throw new functions.https.HttpsError('failed-precondition', 'Insufficient wallet balance')
 
       const now = admin.firestore.FieldValue.serverTimestamp()
+      const durationDays: number = productSnap.data()?.durationDays ?? productSnap.data()?.duration ?? 30
+      const roi: number = productSnap.data()?.roi ?? 0
       const harvestDate = new Date()
-      harvestDate.setDate(harvestDate.getDate() + (productSnap.data()?.duration ?? 30))
+      harvestDate.setDate(harvestDate.getDate() + durationDays)
+      const maturityDate = admin.firestore.Timestamp.fromDate(harvestDate)
+      const expectedReturnUsd = parseFloat((amountUsd * (1 + roi / 100)).toFixed(2))
 
       tx.set(investmentRef, {
         investorId: uid,
         productId,
         amountUsd,
-        roi: productSnap.data()?.roi,
+        roi,
         status: 'active',
-        harvestDate: admin.firestore.Timestamp.fromDate(harvestDate),
+        harvestDate: maturityDate,
+        maturityDate,
+        expectedReturnUsd,
         investedAt: now,
         productName: productSnap.data()?.name,
         productIcon: productSnap.data()?.icon,
