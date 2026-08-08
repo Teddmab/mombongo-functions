@@ -532,5 +532,6 @@ export { updateUserProfile }        from './profile/updateUserProfile'
 
 // ─── KYC ─────────────────────────────────────────────────────────────────────
 
-export { getKycUploadUrls }    from './kyc/getKycUploadUrls'
-export { submitKycDocuments }  from './kyc/submitKycDocuments'
+export { getKycUploadUrls }      from './kyc/getKycUploadUrls'
+export { submitKycDocuments }    from './kyc/submitKycDocuments'
+export { getMyKycSubmission }    from './kyc/getMyKycSubmission'

@@ -20,9 +20,20 @@ export const submitKycDocuments = functions
       throw new functions.https.HttpsError('invalid-argument', 'photoUrls must have 1 or 2 items')
 
     const db = admin.firestore()
+    const submissionRef = db.collection('kyc_submissions').doc(uid)
+
+    // Archive previous submission (if any) before overwriting
+    const existing = await submissionRef.get()
+    if (existing.exists) {
+      const prev = existing.data()!
+      await submissionRef
+        .collection('history')
+        .add({ ...prev, archivedAt: admin.firestore.FieldValue.serverTimestamp() })
+    }
+
     const batch = db.batch()
 
-    batch.set(db.collection('kyc_submissions').doc(uid), {
+    batch.set(submissionRef, {
       uid,
       documentType,
       photoUrls,
