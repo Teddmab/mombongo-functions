@@ -388,7 +388,7 @@ export { createFinancingApplication } from './financing/createFinancingApplicati
 export { submitAgentReport } from './financing/submitAgentReport'
 export { submitUserAction } from './marketplace/submitUserAction'
 
-export const getMyFinancingApplications = functions
+export const getInvestorFinancingApplications = functions
   .region('europe-west1')
   .https.onCall(async (_data, context) => {
     const uid = context.auth?.uid
@@ -539,3 +539,13 @@ export { getMyKycSubmission }    from './kyc/getMyKycSubmission'
 // ─── Farmer Home (SG-09) ─────────────────────────────────────────────────────
 
 export { getFarmerHomeData } from './home/getFarmerHomeData'
+
+// ─── Market Listings Edit (SG-14) ────────────────────────────────────────────
+
+export { updateProductListing }   from './bourse/updateProductListing'
+export { deactivateProductListing } from './bourse/deactivateProductListing'
+
+// ─── Farmer Financing Application (SG-03) ────────────────────────────────────
+
+export { submitFinancingApplication }  from './financing/submitFinancingApplication'
+export { getMyFinancingApplications }  from './financing/getMyFinancingApplications'
