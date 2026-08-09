@@ -567,3 +567,7 @@ export { repayInvestment }     from './investments/repayInvestment'
 
 export { getMyNotifications }    from './notifications/getMyNotifications'
 export { markNotificationsRead } from './notifications/markNotificationsRead'
+
+// ─── Config / Exchange Rate (SGN-07) ─────────────────────────────────────────
+
+export { getExchangeRate } from './config/getExchangeRate'
