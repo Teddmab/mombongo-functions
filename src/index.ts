@@ -385,7 +385,8 @@ export const getCulturalEvents = functions
   })
 
 export { createFinancingApplication } from './financing/createFinancingApplication'
-export { submitAgentReport } from './financing/submitAgentReport'
+export { submitAgentReport }   from './financing/submitAgentReport'
+export { getMyAgentReports }   from './financing/getMyAgentReports'
 export { submitUserAction } from './marketplace/submitUserAction'
 
 export const getInvestorFinancingApplications = functions
@@ -571,3 +572,9 @@ export { markNotificationsRead } from './notifications/markNotificationsRead'
 // ─── Config / Exchange Rate (SGN-07) ─────────────────────────────────────────
 
 export { getExchangeRate } from './config/getExchangeRate'
+
+// ─── Agent Real Data (SG-10) ─────────────────────────────────────────────────
+
+export { getAgentKpis }             from './agent/getAgentKpis'
+export { publishListingForFarmer }  from './agent/publishListingForFarmer'
+export { sendFarmerAlert }          from './agent/sendFarmerAlert'
