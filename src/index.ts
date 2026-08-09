@@ -578,3 +578,9 @@ export { getExchangeRate } from './config/getExchangeRate'
 export { getAgentKpis }             from './agent/getAgentKpis'
 export { publishListingForFarmer }  from './agent/publishListingForFarmer'
 export { sendFarmerAlert }          from './agent/sendFarmerAlert'
+
+// ─── Merchant Real Data (SG-11) ──────────────────────────────────────────────
+
+export { getMerchantHomeData } from './merchant/getMerchantHomeData'
+export { getMerchantOrders }   from './merchant/getMerchantOrders'
+export { createProductOrder }  from './merchant/createProductOrder'
