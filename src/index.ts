@@ -562,3 +562,8 @@ export { getPortfolioBreakdown } from './portfolio/getPortfolioBreakdown'
 
 export { onInvestmentMatured } from './investments/onInvestmentMatured'
 export { repayInvestment }     from './investments/repayInvestment'
+
+// ─── Notifications (SG-08) ───────────────────────────────────────────────────
+
+export { getMyNotifications }    from './notifications/getMyNotifications'
+export { markNotificationsRead } from './notifications/markNotificationsRead'
