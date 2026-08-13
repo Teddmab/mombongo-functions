@@ -503,8 +503,10 @@ export const getMyEnrollment = functions
     return { enrollment: snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() } }
   })
 
-export { enrollCourse }       from './academia/enrollCourse'
-export { markModuleComplete } from './academia/markModuleComplete'
+export { enrollCourse }        from './academia/enrollCourse'
+export { markModuleComplete }  from './academia/markModuleComplete'
+export { getAcademiaProfile }  from './academia/getAcademiaProfile'
+export { getMyCertificates }   from './academia/getMyCertificates'
 
 // ─── Market Intelligence (S9) ────────────────────────────────────────────────
 
