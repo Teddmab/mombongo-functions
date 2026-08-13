@@ -43,5 +43,24 @@ export const markModuleComplete = functions
       ...(isCompleted ? { completedAt: admin.firestore.FieldValue.serverTimestamp() } : {}),
     })
 
-    return { success: true, progressPct, isCompleted }
+    if (!isCompleted) return { success: true, progressPct, isCompleted }
+
+    // Issue certificate on course completion
+    const courseSnap = await db.collection('courses').doc(courseId).get()
+    const courseData = courseSnap.data() ?? {}
+    const xpEarned: number = (courseData.xpReward as number) ?? 50
+
+    const countSnap = await db.collection('certificates').count().get()
+    const certificateNumber = `CERT-${new Date().getFullYear()}-${String(countSnap.data().count + 1).padStart(5, '0')}`
+
+    await db.collection('certificates').add({
+      userId: uid,
+      courseId,
+      courseTitle: (courseData.title as string) ?? '',
+      xpEarned,
+      issuedAt: admin.firestore.FieldValue.serverTimestamp(),
+      certificateNumber,
+    })
+
+    return { success: true, progressPct, isCompleted, certificateNumber, xpEarned }
   })
