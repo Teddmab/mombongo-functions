@@ -385,10 +385,11 @@ export const getCulturalEvents = functions
   })
 
 export { createFinancingApplication } from './financing/createFinancingApplication'
-export { submitAgentReport } from './financing/submitAgentReport'
+export { submitAgentReport }   from './financing/submitAgentReport'
+export { getMyAgentReports }   from './financing/getMyAgentReports'
 export { submitUserAction } from './marketplace/submitUserAction'
 
-export const getMyFinancingApplications = functions
+export const getInvestorFinancingApplications = functions
   .region('europe-west1')
   .https.onCall(async (_data, context) => {
     const uid = context.auth?.uid
@@ -502,8 +503,10 @@ export const getMyEnrollment = functions
     return { enrollment: snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() } }
   })
 
-export { enrollCourse }       from './academia/enrollCourse'
-export { markModuleComplete } from './academia/markModuleComplete'
+export { enrollCourse }        from './academia/enrollCourse'
+export { markModuleComplete }  from './academia/markModuleComplete'
+export { getAcademiaProfile }  from './academia/getAcademiaProfile'
+export { getMyCertificates }   from './academia/getMyCertificates'
 
 // ─── Market Intelligence (S9) ────────────────────────────────────────────────
 
@@ -539,3 +542,47 @@ export { getMyKycSubmission }    from './kyc/getMyKycSubmission'
 // ─── Farmer Home (SG-09) ─────────────────────────────────────────────────────
 
 export { getFarmerHomeData } from './home/getFarmerHomeData'
+
+// ─── Market Listings Edit (SG-14) ────────────────────────────────────────────
+
+export { updateProductListing }   from './bourse/updateProductListing'
+export { deactivateProductListing } from './bourse/deactivateProductListing'
+
+// ─── Farmer Financing Application (SG-03) ────────────────────────────────────
+
+export { submitFinancingApplication }  from './financing/submitFinancingApplication'
+export { getMyFinancingApplications }  from './financing/getMyFinancingApplications'
+
+// ─── Investor Portfolio & History (SG-06) ────────────────────────────────────
+
+export { getPortfolioTrend }    from './portfolio/getPortfolioTrend'
+export { getMyActivity }        from './portfolio/getMyActivity'
+export { getMyTransactions }    from './portfolio/getMyTransactions'
+export { getMyBoursePositions } from './portfolio/getMyBoursePositions'
+export { getPortfolioBreakdown } from './portfolio/getPortfolioBreakdown'
+
+// ─── Investment Maturity & Repayment (SGN-05) ────────────────────────────────
+
+export { onInvestmentMatured } from './investments/onInvestmentMatured'
+export { repayInvestment }     from './investments/repayInvestment'
+
+// ─── Notifications (SG-08) ───────────────────────────────────────────────────
+
+export { getMyNotifications }    from './notifications/getMyNotifications'
+export { markNotificationsRead } from './notifications/markNotificationsRead'
+
+// ─── Config / Exchange Rate (SGN-07) ─────────────────────────────────────────
+
+export { getExchangeRate } from './config/getExchangeRate'
+
+// ─── Agent Real Data (SG-10) ─────────────────────────────────────────────────
+
+export { getAgentKpis }             from './agent/getAgentKpis'
+export { publishListingForFarmer }  from './agent/publishListingForFarmer'
+export { sendFarmerAlert }          from './agent/sendFarmerAlert'
+
+// ─── Merchant Real Data (SG-11) ──────────────────────────────────────────────
+
+export { getMerchantHomeData } from './merchant/getMerchantHomeData'
+export { getMerchantOrders }   from './merchant/getMerchantOrders'
+export { createProductOrder }  from './merchant/createProductOrder'
