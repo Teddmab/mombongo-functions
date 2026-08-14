@@ -586,3 +586,9 @@ export { sendFarmerAlert }          from './agent/sendFarmerAlert'
 export { getMerchantHomeData } from './merchant/getMerchantHomeData'
 export { getMerchantOrders }   from './merchant/getMerchantOrders'
 export { createProductOrder }  from './merchant/createProductOrder'
+
+// ─── Post-Harvest Transformation (SF-01) ─────────────────────────────────────
+
+export { recordProductTransformation }    from './farmer/recordProductTransformation'
+export { getMyProductTransformations }    from './farmer/getMyProductTransformations'
+export { createListingFromTransformation } from './farmer/createListingFromTransformation'
