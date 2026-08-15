@@ -268,6 +268,40 @@
         { "fieldPath": "cultureId",  "order": "ASCENDING" },
         { "fieldPath": "recordedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "cooperative_lots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status",    "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "cooperative_lots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status",    "order": "ASCENDING" },
+        { "fieldPath": "commodity", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "cooperative_lots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status",    "order": "ASCENDING" },
+        { "fieldPath": "province",  "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "cooperative_lots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "memberIds",  "arrayConfig": "CONTAINS" },
+        { "fieldPath": "createdAt",  "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
