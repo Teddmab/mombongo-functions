@@ -602,3 +602,10 @@ export { getHarvestHistory }   from './farmer/getHarvestHistory'
 
 export { getFarmPnlSummary }    from './farmer/getFarmPnlSummary'
 export { getCropProfitability } from './farmer/getCropProfitability'
+
+// ─── Personalized Crop Price Alerts (SF-04) ───────────────────────────────────
+
+export { setFarmerPriceAlert }    from './farmer/setFarmerPriceAlert'
+export { deleteFarmerPriceAlert } from './farmer/deleteFarmerPriceAlert'
+export { getFarmerPriceAlerts }   from './farmer/getFarmerPriceAlerts'
+export { checkFarmerPriceAlerts } from './farmer/checkFarmerPriceAlerts'
