@@ -302,6 +302,14 @@
         { "fieldPath": "memberIds",  "arrayConfig": "CONTAINS" },
         { "fieldPath": "createdAt",  "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "agro_advisories",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "province",    "order": "ASCENDING" },
+        { "fieldPath": "effectiveTo", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
