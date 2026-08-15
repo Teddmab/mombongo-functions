@@ -251,6 +251,23 @@
         { "fieldPath": "province",  "order": "ASCENDING" },
         { "fieldPath": "active",    "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "farm_inputs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "farmerId",   "order": "ASCENDING" },
+        { "fieldPath": "recordedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "farm_inputs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "farmerId",   "order": "ASCENDING" },
+        { "fieldPath": "cultureId",  "order": "ASCENDING" },
+        { "fieldPath": "recordedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
