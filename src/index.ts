@@ -592,3 +592,8 @@ export { createProductOrder }  from './merchant/createProductOrder'
 export { recordProductTransformation }    from './farmer/recordProductTransformation'
 export { getMyProductTransformations }    from './farmer/getMyProductTransformations'
 export { createListingFromTransformation } from './farmer/createListingFromTransformation'
+
+// ─── Harvest Recording (SF-02) ───────────────────────────────────────────────
+
+export { recordActualHarvest } from './farmer/recordActualHarvest'
+export { getHarvestHistory }   from './farmer/getHarvestHistory'
