@@ -138,6 +138,83 @@
         { "fieldPath": "agentId",   "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+
+    {
+      "collectionGroup": "product_transformations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "farmerId",  "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "product_transformations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "farmerId",  "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "harvest_records",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "farmerId",    "order": "ASCENDING" },
+        { "fieldPath": "harvestDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "harvest_records",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "farmerId",       "order": "ASCENDING" },
+        { "fieldPath": "exploitationId", "order": "ASCENDING" },
+        { "fieldPath": "harvestDate",    "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "harvest_records",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "farmerId",    "order": "ASCENDING" },
+        { "fieldPath": "harvestDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "bourse_contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sellerId",    "order": "ASCENDING" },
+        { "fieldPath": "status",      "order": "ASCENDING" },
+        { "fieldPath": "completedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "farm_inputs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "farmerId",    "order": "ASCENDING" },
+        { "fieldPath": "purchasedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "farmer_price_alerts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "farmerId",  "order": "ASCENDING" },
+        { "fieldPath": "active",    "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "farmer_price_alerts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "commodity", "order": "ASCENDING" },
+        { "fieldPath": "province",  "order": "ASCENDING" },
+        { "fieldPath": "active",    "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
