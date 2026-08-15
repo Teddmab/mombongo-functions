@@ -615,3 +615,10 @@ export { checkFarmerPriceAlerts } from './farmer/checkFarmerPriceAlerts'
 export { recordFarmInput } from './farmer/recordFarmInput'
 export { getFarmInputs }   from './farmer/getFarmInputs'
 export { deleteFarmInput } from './farmer/deleteFarmInput'
+
+// ─── Cooperative / Group Sales (SF-06) ───────────────────────────────────────
+
+export { createCooperativeLot }  from './farmer/createCooperativeLot'
+export { joinCooperativeLot }    from './farmer/joinCooperativeLot'
+export { getCooperativeLots }    from './farmer/getCooperativeLots'
+export { getMyCooperativeLots }  from './farmer/getMyCooperativeLots'
