@@ -597,3 +597,8 @@ export { createListingFromTransformation } from './farmer/createListingFromTrans
 
 export { recordActualHarvest } from './farmer/recordActualHarvest'
 export { getHarvestHistory }   from './farmer/getHarvestHistory'
+
+// ─── Farm Revenue & Profitability Analytics (SF-03) ──────────────────────────
+
+export { getFarmPnlSummary }    from './farmer/getFarmPnlSummary'
+export { getCropProfitability } from './farmer/getCropProfitability'
