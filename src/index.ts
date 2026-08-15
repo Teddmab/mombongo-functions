@@ -622,3 +622,10 @@ export { createCooperativeLot }  from './farmer/createCooperativeLot'
 export { joinCooperativeLot }    from './farmer/joinCooperativeLot'
 export { getCooperativeLots }    from './farmer/getCooperativeLots'
 export { getMyCooperativeLots }  from './farmer/getMyCooperativeLots'
+
+// ─── Agronomy Advisory & Province Weather Push Alerts (SF-07) ────────────────
+
+export { getAgroAdvisory }          from './farmer/getAgroAdvisory'
+export { subscribeToProvinceAlerts } from './farmer/subscribeToProvinceAlerts'
+export { sendCropStageAlerts }       from './farmer/sendCropStageAlerts'
+export { createAgroAdvisory }        from './admin/createAgroAdvisory'
