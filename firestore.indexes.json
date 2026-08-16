@@ -310,6 +310,30 @@
         { "fieldPath": "province",    "order": "ASCENDING" },
         { "fieldPath": "effectiveTo", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "bourse_investments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "investorId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt",  "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "bourse_opportunities",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "createdBy",  "order": "ASCENDING" },
+        { "fieldPath": "createdAt",  "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "pre_purchases",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "merchantId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt",  "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

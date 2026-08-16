@@ -583,9 +583,15 @@ export { sendFarmerAlert }          from './agent/sendFarmerAlert'
 
 // ─── Merchant Real Data (SG-11) ──────────────────────────────────────────────
 
-export { getMerchantHomeData } from './merchant/getMerchantHomeData'
-export { getMerchantOrders }   from './merchant/getMerchantOrders'
-export { createProductOrder }  from './merchant/createProductOrder'
+export { getMerchantHomeData }      from './merchant/getMerchantHomeData'
+export { getMerchantOrders }        from './merchant/getMerchantOrders'
+export { createProductOrder }       from './merchant/createProductOrder'
+export { reserveBourseLot }         from './merchant/reserveBourseLot'
+export { createBourseOpportunity }  from './merchant/createBourseOpportunity'
+export { createPrePurchase }        from './merchant/createPrePurchase'
+export { getMerchantReservations }  from './merchant/getMerchantReservations'
+export { getMyBourseLots }          from './merchant/getMyBourseLots'
+export { closeBourseLot }           from './merchant/closeBourseLot'
 
 // ─── Post-Harvest Transformation (SF-01) ─────────────────────────────────────
 
