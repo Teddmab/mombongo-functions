@@ -583,9 +583,15 @@ export { sendFarmerAlert }          from './agent/sendFarmerAlert'
 
 // ─── Merchant Real Data (SG-11) ──────────────────────────────────────────────
 
-export { getMerchantHomeData } from './merchant/getMerchantHomeData'
-export { getMerchantOrders }   from './merchant/getMerchantOrders'
-export { createProductOrder }  from './merchant/createProductOrder'
+export { getMerchantHomeData }      from './merchant/getMerchantHomeData'
+export { getMerchantOrders }        from './merchant/getMerchantOrders'
+export { createProductOrder }       from './merchant/createProductOrder'
+export { reserveBourseLot }         from './merchant/reserveBourseLot'
+export { createBourseOpportunity }  from './merchant/createBourseOpportunity'
+export { createPrePurchase }        from './merchant/createPrePurchase'
+export { getMerchantReservations }  from './merchant/getMerchantReservations'
+export { getMyBourseLots }          from './merchant/getMyBourseLots'
+export { closeBourseLot }           from './merchant/closeBourseLot'
 
 // ─── Post-Harvest Transformation (SF-01) ─────────────────────────────────────
 
@@ -629,3 +635,11 @@ export { getAgroAdvisory }          from './farmer/getAgroAdvisory'
 export { subscribeToProvinceAlerts } from './farmer/subscribeToProvinceAlerts'
 export { sendCropStageAlerts }       from './farmer/sendCropStageAlerts'
 export { createAgroAdvisory }        from './admin/createAgroAdvisory'
+
+// ─── SG-01: Smart signup — role change request ───────────────────────────────
+export { createRoleChangeRequest } from './profile/createRoleChangeRequest'
+
+// ─── SG-02: Profile edit & parcel management ─────────────────────────────────
+export { upsertFarmerParcel }  from './farmer/upsertFarmerParcel'
+export { deleteFarmerParcel }  from './farmer/deleteFarmerParcel'
+export { getFarmerParcels }    from './farmer/getFarmerParcels'
