@@ -6,10 +6,12 @@ export const updateUserProfile = functions
     const uid = context.auth?.uid
     if (!uid) throw new functions.https.HttpsError('unauthenticated', 'Login required')
 
-    const { avatarUrl, phone, mobileMoneyNumber } = data as {
+    const { avatarUrl, phone, mobileMoneyNumber, displayName, province } = data as {
       avatarUrl?: string
       phone?: string
       mobileMoneyNumber?: string
+      displayName?: string
+      province?: string
     }
 
     const updates: Record<string, unknown> = {
@@ -18,6 +20,8 @@ export const updateUserProfile = functions
     if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl
     if (phone !== undefined) updates.phone = phone
     if (mobileMoneyNumber !== undefined) updates.mobileMoneyNumber = mobileMoneyNumber
+    if (displayName !== undefined) updates.displayName = displayName
+    if (province !== undefined) updates.province = province
 
     await admin.firestore().collection('users').doc(uid).update(updates)
     return { success: true }

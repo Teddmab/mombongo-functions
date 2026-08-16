@@ -638,3 +638,8 @@ export { createAgroAdvisory }        from './admin/createAgroAdvisory'
 
 // ─── SG-01: Smart signup — role change request ───────────────────────────────
 export { createRoleChangeRequest } from './profile/createRoleChangeRequest'
+
+// ─── SG-02: Profile edit & parcel management ─────────────────────────────────
+export { upsertFarmerParcel }  from './farmer/upsertFarmerParcel'
+export { deleteFarmerParcel }  from './farmer/deleteFarmerParcel'
+export { getFarmerParcels }    from './farmer/getFarmerParcels'
