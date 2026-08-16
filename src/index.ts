@@ -635,3 +635,6 @@ export { getAgroAdvisory }          from './farmer/getAgroAdvisory'
 export { subscribeToProvinceAlerts } from './farmer/subscribeToProvinceAlerts'
 export { sendCropStageAlerts }       from './farmer/sendCropStageAlerts'
 export { createAgroAdvisory }        from './admin/createAgroAdvisory'
+
+// ─── SG-01: Smart signup — role change request ───────────────────────────────
+export { createRoleChangeRequest } from './profile/createRoleChangeRequest'
