@@ -342,6 +342,23 @@
         { "fieldPath": "deleted",    "order": "ASCENDING" },
         { "fieldPath": "createdAt",  "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "shipment_bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "contractId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt",  "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "warehouse_receipts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "farmerId",    "order": "ASCENDING" },
+        { "fieldPath": "status",      "order": "ASCENDING" },
+        { "fieldPath": "depositedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

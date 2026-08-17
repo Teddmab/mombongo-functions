@@ -643,3 +643,11 @@ export { createRoleChangeRequest } from './profile/createRoleChangeRequest'
 export { upsertFarmerParcel }  from './farmer/upsertFarmerParcel'
 export { deleteFarmerParcel }  from './farmer/deleteFarmerParcel'
 export { getFarmerParcels }    from './farmer/getFarmerParcels'
+
+// ─── S11: Logistics & Warehouses ─────────────────────────────────────────────
+export { getTransportPartners }    from './logistics/getTransportPartners'
+export { bookTransport }           from './logistics/bookTransport'
+export { updateShipmentStatus }    from './logistics/updateShipmentStatus'
+export { getWarehouses }           from './logistics/getWarehouses'
+export { getMyWarehouseReceipts }  from './logistics/getMyWarehouseReceipts'
+export { createWarehouseReceipt }  from './logistics/createWarehouseReceipt'
