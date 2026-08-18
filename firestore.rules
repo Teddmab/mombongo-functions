@@ -2,14 +2,20 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper — requires custom claim set by admin CF
+    // isAdmin checks the custom claim set by the setUserRole CF:
+    //   admin.auth().setCustomUserClaims(uid, { role: 'admin' })
+    // The token claim is `role`, not `admin`.
     function isAdmin() {
-      return request.auth != null && request.auth.token.admin == true;
+      return request.auth != null && request.auth.token.role == 'admin';
     }
 
-    // Blanket deny — all direct client access is blocked by default.
+    // Admin users get full read/write access to all collections.
     // Cloud Functions use Admin SDK which bypasses these rules entirely.
-    // Specific allow rules below override this for their paths.
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // Blanket deny for non-admin, non-specific paths.
     match /{document=**} {
       allow read, write: if false;
     }

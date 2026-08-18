@@ -263,9 +263,12 @@ export { pawapayRefundWebhook }  from './payments/pawapayRefundWebhook'
 
 // ─── Admin operations ────────────────────────────────────────────────────────
 
-export { setUserRole }       from './admin/setUserRole'
-export { disableUser }       from './admin/disableUser'
-export { getDashboardKpis }  from './admin/getDashboardKpis'
+export { setUserRole }        from './admin/setUserRole'
+export { disableUser }        from './admin/disableUser'
+export { getDashboardKpis }   from './admin/getDashboardKpis'
+export { bootstrapAdmin }     from './admin/bootstrapAdmin'
+export { createAdminInvite }  from './admin/createAdminInvite'
+export { claimAdminInvite }   from './admin/claimAdminInvite'
 
 // ─── Product admin ───────────────────────────────────────────────────────────
 
@@ -635,6 +638,15 @@ export { getAgroAdvisory }          from './farmer/getAgroAdvisory'
 export { subscribeToProvinceAlerts } from './farmer/subscribeToProvinceAlerts'
 export { sendCropStageAlerts }       from './farmer/sendCropStageAlerts'
 export { createAgroAdvisory }        from './admin/createAgroAdvisory'
+
+// ─── UX Uplift — SU-01: Daily Engagement ─────────────────────────────────────
+
+export { sendMorningPricePush }         from './notifications/sendMorningPricePush'
+
+// ─── Admin: Notification tools (SAN-01) ───────────────────────────────────────
+
+export { adminSendPush }                from './notifications/adminSendPush'
+export { adminTriggerMorningPricePush } from './notifications/adminTriggerMorningPricePush'
 
 // ─── SG-01: Smart signup — role change request ───────────────────────────────
 export { createRoleChangeRequest } from './profile/createRoleChangeRequest'
