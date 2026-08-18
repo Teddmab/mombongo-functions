@@ -234,7 +234,11 @@ export const registerFcmToken = functions
     const { token } = data as { token: string }
     if (!token) throw new functions.https.HttpsError('invalid-argument', 'token required')
 
-    await db.collection('users').doc(uid).update({ fcmToken: token })
+    // Use arrayUnion so multiple devices accumulate tokens and the empty
+    // fcmTokens:[] created at signup is correctly populated (not bypassed).
+    await db.collection('users').doc(uid).update({
+      fcmTokens: admin.firestore.FieldValue.arrayUnion(token),
+    })
     return { success: true }
   })
 
