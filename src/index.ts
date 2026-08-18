@@ -263,9 +263,12 @@ export { pawapayRefundWebhook }  from './payments/pawapayRefundWebhook'
 
 // ─── Admin operations ────────────────────────────────────────────────────────
 
-export { setUserRole }       from './admin/setUserRole'
-export { disableUser }       from './admin/disableUser'
-export { getDashboardKpis }  from './admin/getDashboardKpis'
+export { setUserRole }        from './admin/setUserRole'
+export { disableUser }        from './admin/disableUser'
+export { getDashboardKpis }   from './admin/getDashboardKpis'
+export { bootstrapAdmin }     from './admin/bootstrapAdmin'
+export { createAdminInvite }  from './admin/createAdminInvite'
+export { claimAdminInvite }   from './admin/claimAdminInvite'
 
 // ─── Product admin ───────────────────────────────────────────────────────────
 
