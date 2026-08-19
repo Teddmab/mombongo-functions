@@ -96,9 +96,22 @@ export async function sendMorningPricePushCore(): Promise<void> {
 
       await Promise.all(
         group.uids.map(uid =>
-          sendPush(uid, title, body, data).catch(err =>
-            functions.logger.warn(`sendMorningPricePush: sendPush failed for ${uid}`, err)
-          )
+          Promise.all([
+            sendPush(uid, title, body, data).catch(err =>
+              functions.logger.warn(`sendMorningPricePush: sendPush failed for ${uid}`, err)
+            ),
+            db.collection('notifications').add({
+              userId: uid,
+              type: 'market_price',
+              title,
+              body,
+              data,
+              read: false,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            }).catch(err =>
+              functions.logger.warn(`sendMorningPricePush: notification write failed for ${uid}`, err)
+            ),
+          ])
         )
       )
     })
