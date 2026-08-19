@@ -16,12 +16,12 @@ export async function sendPush(
   if (!userSnap.exists) return
 
   const userData = userSnap.data()!
-  // Support both legacy single token and array of tokens
-  const tokens: string[] = Array.isArray(userData.fcmTokens)
-    ? userData.fcmTokens
-    : userData.fcmToken
-    ? [userData.fcmToken]
-    : []
+  // Merge array tokens (current) with singular token (legacy).
+  // fcmTokens is always initialised as [] at signup so Array.isArray() is always
+  // true — we must also check the singular fcmToken field regardless.
+  const arrayTokens: string[] = Array.isArray(userData.fcmTokens) ? userData.fcmTokens : []
+  const singleToken: string[] = userData.fcmToken ? [userData.fcmToken as string] : []
+  const tokens: string[] = [...new Set([...arrayTokens, ...singleToken])].filter(Boolean)
 
   if (tokens.length === 0) return
 
