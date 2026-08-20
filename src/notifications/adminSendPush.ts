@@ -3,6 +3,18 @@ import { sendPush } from './sendPush'
 
 const db = admin.firestore()
 
+async function writeNotification(uid: string, title: string, body: string, data: Record<string, string>) {
+  await db.collection('notifications').add({
+    userId: uid,
+    type: 'system',
+    title,
+    body,
+    data,
+    read: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  })
+}
+
 export const adminSendPush = functions
   .region('europe-west1')
   .https.onCall(async (data, context) => {
@@ -31,24 +43,24 @@ export const adminSendPush = functions
     if (crop)     pushData.crop     = crop
     if (province) pushData.province = province
 
-    const results = { sent: 0, failed: 0 }
+    // Aggregate actual FCM delivery counts, not just call counts
+    const results = { sent: 0, failed: 0, noTokens: 0 }
 
     if (targetUid) {
-      try {
-        await sendPush(targetUid, title, body, pushData)
-        results.sent++
-      } catch {
-        results.failed++
-      }
+      const r = await sendPush(targetUid, title, body, pushData)
+      results.sent    += r.sent
+      results.failed  += r.failed
+      results.noTokens += r.noTokens ? 1 : 0
+      // Write to notifications collection so the in-app panel shows it
+      await writeNotification(targetUid, title, body, pushData).catch(() => undefined)
     } else if (targetRole) {
       const snap = await db.collection('users').where('role', '==', targetRole).get()
       await Promise.all(snap.docs.map(async doc => {
-        try {
-          await sendPush(doc.id, title, body, pushData)
-          results.sent++
-        } catch {
-          results.failed++
-        }
+        const r = await sendPush(doc.id, title, body, pushData).catch(() => ({ sent: 0, failed: 1, noTokens: false }))
+        results.sent    += r.sent
+        results.failed  += r.failed
+        results.noTokens += r.noTokens ? 1 : 0
+        await writeNotification(doc.id, title, body, pushData).catch(() => undefined)
       }))
     } else {
       throw new functions.https.HttpsError('invalid-argument', 'targetUid or targetRole required')
