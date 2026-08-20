@@ -55,6 +55,8 @@ export const createUserProfile = functions
         country,
         kycStatus: 'none',
         kycVerifiedAt: null,
+        onboardingComplete: role === 'farmer' ? false : true,
+        primaryGoal: null,
         mobileMoneyNumber: null,
         mobileMoneyProvider: null,
         fcmTokens: [],
@@ -533,6 +535,7 @@ export { saveMyExploitation }            from './exploitation/saveMyExploitation
 export { getMyCultures }                 from './exploitation/getMyCultures'
 export { saveCulture }                   from './exploitation/saveCulture'
 export { deleteCulture }                 from './exploitation/deleteCulture'
+export { deleteMyExploitation }          from './exploitation/deleteMyExploitation'
 export { getExploitationPhotoUploadUrl } from './exploitation/getExploitationPhotoUploadUrl'
 
 // ─── Profile ──────────────────────────────────────────────────────────────────
@@ -645,6 +648,8 @@ export { createAgroAdvisory }        from './admin/createAgroAdvisory'
 
 // ─── UX Uplift — SU-01: Daily Engagement ─────────────────────────────────────
 
+export { completeOnboarding }  from './profile/completeOnboarding'
+export { getProvincePrices }   from './intelligence/getProvincePrices'
 export { sendMorningPricePush }         from './notifications/sendMorningPricePush'
 
 // ─── Admin: Notification tools (SAN-01) ───────────────────────────────────────
