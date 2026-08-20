@@ -1,5 +1,5 @@
 import { admin, functions } from '../lib/admin'
-import { sendMorningPricePushCore } from './sendMorningPricePush'
+import { sendMorningPricePushCore, type MorningPushDiagnostics } from './sendMorningPricePush'
 
 const db = admin.firestore()
 
@@ -15,7 +15,7 @@ export const adminTriggerMorningPricePush = functions
 
     functions.logger.info(`adminTriggerMorningPricePush: triggered manually by ${context.auth.uid}`)
 
-    await sendMorningPricePushCore()
+    const diag: MorningPushDiagnostics = await sendMorningPricePushCore()
 
-    return { success: true, triggeredAt: new Date().toISOString() }
+    return { success: true, triggeredAt: new Date().toISOString(), diag }
   })
