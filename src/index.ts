@@ -583,7 +583,8 @@ export { markNotificationsRead } from './notifications/markNotificationsRead'
 
 // ─── Config / Exchange Rate (SGN-07) ─────────────────────────────────────────
 
-export { getExchangeRate } from './config/getExchangeRate'
+export { getExchangeRate }       from './config/getExchangeRate'
+export { getDidYouKnowFacts }   from './config/getDidYouKnowFacts'
 
 // ─── Agent Real Data (SG-10) ─────────────────────────────────────────────────
 
