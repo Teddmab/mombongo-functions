@@ -652,6 +652,7 @@ export { createAgroAdvisory }        from './admin/createAgroAdvisory'
 export { completeOnboarding }  from './profile/completeOnboarding'
 export { getProvincePrices }   from './intelligence/getProvincePrices'
 export { sendMorningPricePush }         from './notifications/sendMorningPricePush'
+export { getMomBongoScore }    from './farmer/getMomBongoScore'
 
 // ─── Admin: Notification tools (SAN-01) ───────────────────────────────────────
 
