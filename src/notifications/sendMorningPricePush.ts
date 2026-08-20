@@ -3,12 +3,15 @@ import { sendPush } from './sendPush'
 
 const db = admin.firestore()
 
+// Cultures with these statuses are done/cancelled — skip them
+const EXCLUDED_CULTURE_STATUSES = new Set(['termine', 'annule'])
+
 // ─── types ───────────────────────────────────────────────────────────────────
 
 export interface MorningPushDiagnostics {
-  farmersFound: number
-  farmersSkipped: number        // missing cropType or province, or opted out
-  groupsFormed: number          // unique (crop, province) pairs
+  farmersFound: number          // farmer users checked for opt-out prefs
+  farmersSkipped: number        // farmers with no eligible culture or opted out
+  groupsFormed: number          // unique (commodity, province) pairs
   skippedGroups: Array<{
     crop: string
     province: string
@@ -47,57 +50,78 @@ export async function sendMorningPricePushCore(): Promise<MorningPushDiagnostics
     pushAttempts: 0,
   }
 
-  const farmersSnap = await db.collection('users')
-    .where('role', '==', 'farmer')
-    .get()
-
+  // 1. Read farmer notification opt-outs from users collection
+  const farmersSnap = await db.collection('users').where('role', '==', 'farmer').get()
   diag.farmersFound = farmersSnap.size
 
   if (farmersSnap.empty) {
-    functions.logger.info('sendMorningPricePush: no farmers found')
+    functions.logger.info('sendMorningPricePush: no farmer users found')
     return diag
   }
 
-  const groups = new Map<string, { crop: string; province: string; uids: string[] }>()
+  const optedOutUids = new Set(
+    farmersSnap.docs
+      .filter(d => (d.data().notificationPrefs as Record<string, unknown> | undefined)?.morningPrice === false)
+      .map(d => d.id)
+  )
 
-  for (const doc of farmersSnap.docs) {
-    const d = doc.data()
-    const crop: string = (d.cropType as string | undefined) ?? ''
-    const province: string = (d.province as string | undefined) ?? ''
-    if (!crop || !province) { diag.farmersSkipped++; continue }
-    if ((d.notificationPrefs as Record<string, unknown> | undefined)?.morningPrice === false) {
-      diag.farmersSkipped++
-      continue
+  // 2. Read all exploitations — commodity + province live here, not on the user doc
+  const explSnap = await db.collection('exploitations').get()
+
+  // groups: (commodity, province) → set of farmer UIDs
+  const groups = new Map<string, { commodity: string; province: string; uids: Set<string> }>()
+  const farmerHasGroup = new Set<string>()
+
+  await Promise.all(explSnap.docs.map(async expl => {
+    const e = expl.data()
+    const farmerId: string = (e.farmerId as string | undefined) ?? ''
+    const province: string = (e.province as string | undefined) ?? ''
+
+    if (!farmerId || !province) return
+    if (optedOutUids.has(farmerId)) return
+
+    const cultSnap = await db.collection('exploitations').doc(expl.id)
+      .collection('cultures')
+      .get()
+
+    for (const cult of cultSnap.docs) {
+      const c = cult.data()
+      const commodity: string = (c.commodity as string | undefined) ?? ''
+      const status: string = (c.status as string | undefined) ?? 'active'
+
+      if (!commodity || EXCLUDED_CULTURE_STATUSES.has(status)) continue
+
+      const key = `${commodity}::${province}`
+      if (!groups.has(key)) groups.set(key, { commodity, province, uids: new Set() })
+      groups.get(key)!.uids.add(farmerId)
+      farmerHasGroup.add(farmerId)
     }
+  }))
 
-    const key = `${crop}::${province}`
-    if (!groups.has(key)) groups.set(key, { crop, province, uids: [] })
-    groups.get(key)!.uids.push(doc.id)
-  }
-
+  diag.farmersSkipped = farmersSnap.size - farmerHasGroup.size + optedOutUids.size
   diag.groupsFormed = groups.size
 
   if (groups.size === 0) {
-    functions.logger.info('sendMorningPricePush: no eligible farmers with crop+province set')
+    functions.logger.info('sendMorningPricePush: no (commodity, province) groups formed from exploitations')
     return diag
   }
 
-  functions.logger.info(`sendMorningPricePush: ${farmersSnap.size} farmers, ${groups.size} unique (crop, province) pairs`)
+  functions.logger.info(`sendMorningPricePush: ${groups.size} unique (commodity, province) pairs from ${farmerHasGroup.size} farmer(s)`)
 
   const usdToCdf = await getUsdToCdf()
 
   await Promise.all(
     [...groups.entries()].map(async ([, group]) => {
       const priceSnap = await db.collection('province_prices')
-        .where('commodity', '==', group.crop)
+        .where('commodity', '==', group.commodity)
         .where('province', '==', group.province)
         .orderBy('updatedAt', 'desc')
         .limit(1)
         .get()
 
       if (priceSnap.empty) {
-        functions.logger.warn(`sendMorningPricePush: no province_prices for ${group.crop}/${group.province} — skipping ${group.uids.length} farmer(s)`)
-        diag.skippedGroups.push({ crop: group.crop, province: group.province, farmers: group.uids.length, reason: 'no_price_doc' })
+        functions.logger.warn(`sendMorningPricePush: no province_prices for ${group.commodity}/${group.province} — skipping ${group.uids.size} farmer(s)`)
+        diag.skippedGroups.push({ crop: group.commodity, province: group.province, farmers: group.uids.size, reason: 'no_price_doc' })
         return
       }
 
@@ -108,8 +132,8 @@ export async function sendMorningPricePushCore(): Promise<MorningPushDiagnostics
         Math.round(((priceData.priceUsd as number | undefined) ?? 0) * usdToCdf)
 
       if (pricePerKgCdf === 0) {
-        functions.logger.warn(`sendMorningPricePush: zero price for ${group.crop}/${group.province} — skipping`)
-        diag.skippedGroups.push({ crop: group.crop, province: group.province, farmers: group.uids.length, reason: 'zero_price' })
+        functions.logger.warn(`sendMorningPricePush: zero price for ${group.commodity}/${group.province} — skipping`)
+        diag.skippedGroups.push({ crop: group.commodity, province: group.province, farmers: group.uids.size, reason: 'zero_price' })
         return
       }
 
@@ -117,18 +141,18 @@ export async function sendMorningPricePushCore(): Promise<MorningPushDiagnostics
       const deltaStr = buildDeltaStr(pricePerKgCdf, previousPriceCdf)
 
       const title = 'Prix du marché ce matin'
-      const body = `${group.crop} à ${pricePerKgCdf.toLocaleString('fr-FR')} FC/kg en ${group.province}${deltaStr}`
+      const body = `${group.commodity} à ${pricePerKgCdf.toLocaleString('fr-FR')} FC/kg en ${group.province}${deltaStr}`
       const data: Record<string, string> = {
         screen: 'market',
-        crop: group.crop,
+        crop: group.commodity,
         province: group.province,
       }
 
-      functions.logger.info(`sendMorningPricePush: sending to ${group.uids.length} farmers — ${body}`)
-      diag.pushAttempts += group.uids.length
+      functions.logger.info(`sendMorningPricePush: sending to ${group.uids.size} farmer(s) — ${body}`)
+      diag.pushAttempts += group.uids.size
 
       await Promise.all(
-        group.uids.map(uid =>
+        [...group.uids].map(uid =>
           Promise.all([
             sendPush(uid, title, body, data).catch(err =>
               functions.logger.warn(`sendMorningPricePush: sendPush failed for ${uid}`, err)
