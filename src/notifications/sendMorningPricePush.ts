@@ -3,6 +3,21 @@ import { sendPush } from './sendPush'
 
 const db = admin.firestore()
 
+// ─── types ───────────────────────────────────────────────────────────────────
+
+export interface MorningPushDiagnostics {
+  farmersFound: number
+  farmersSkipped: number        // missing cropType or province, or opted out
+  groupsFormed: number          // unique (crop, province) pairs
+  skippedGroups: Array<{
+    crop: string
+    province: string
+    farmers: number
+    reason: 'no_price_doc' | 'zero_price'
+  }>
+  pushAttempts: number          // total farmers for whom push was attempted
+}
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 async function getUsdToCdf(): Promise<number> {
@@ -23,14 +38,24 @@ function buildDeltaStr(current: number, previous: number | undefined): string {
 
 // ─── core logic (shared by scheduled CF and admin onCall CF) ─────────────────
 
-export async function sendMorningPricePushCore(): Promise<void> {
+export async function sendMorningPricePushCore(): Promise<MorningPushDiagnostics> {
+  const diag: MorningPushDiagnostics = {
+    farmersFound: 0,
+    farmersSkipped: 0,
+    groupsFormed: 0,
+    skippedGroups: [],
+    pushAttempts: 0,
+  }
+
   const farmersSnap = await db.collection('users')
     .where('role', '==', 'farmer')
     .get()
 
+  diag.farmersFound = farmersSnap.size
+
   if (farmersSnap.empty) {
     functions.logger.info('sendMorningPricePush: no farmers found')
-    return
+    return diag
   }
 
   const groups = new Map<string, { crop: string; province: string; uids: string[] }>()
@@ -39,17 +64,22 @@ export async function sendMorningPricePushCore(): Promise<void> {
     const d = doc.data()
     const crop: string = (d.cropType as string | undefined) ?? ''
     const province: string = (d.province as string | undefined) ?? ''
-    if (!crop || !province) continue
-    if ((d.notificationPrefs as Record<string, unknown> | undefined)?.morningPrice === false) continue
+    if (!crop || !province) { diag.farmersSkipped++; continue }
+    if ((d.notificationPrefs as Record<string, unknown> | undefined)?.morningPrice === false) {
+      diag.farmersSkipped++
+      continue
+    }
 
     const key = `${crop}::${province}`
     if (!groups.has(key)) groups.set(key, { crop, province, uids: [] })
     groups.get(key)!.uids.push(doc.id)
   }
 
+  diag.groupsFormed = groups.size
+
   if (groups.size === 0) {
     functions.logger.info('sendMorningPricePush: no eligible farmers with crop+province set')
-    return
+    return diag
   }
 
   functions.logger.info(`sendMorningPricePush: ${farmersSnap.size} farmers, ${groups.size} unique (crop, province) pairs`)
@@ -67,6 +97,7 @@ export async function sendMorningPricePushCore(): Promise<void> {
 
       if (priceSnap.empty) {
         functions.logger.warn(`sendMorningPricePush: no province_prices for ${group.crop}/${group.province} — skipping ${group.uids.length} farmer(s)`)
+        diag.skippedGroups.push({ crop: group.crop, province: group.province, farmers: group.uids.length, reason: 'no_price_doc' })
         return
       }
 
@@ -78,6 +109,7 @@ export async function sendMorningPricePushCore(): Promise<void> {
 
       if (pricePerKgCdf === 0) {
         functions.logger.warn(`sendMorningPricePush: zero price for ${group.crop}/${group.province} — skipping`)
+        diag.skippedGroups.push({ crop: group.crop, province: group.province, farmers: group.uids.length, reason: 'zero_price' })
         return
       }
 
@@ -93,6 +125,7 @@ export async function sendMorningPricePushCore(): Promise<void> {
       }
 
       functions.logger.info(`sendMorningPricePush: sending to ${group.uids.length} farmers — ${body}`)
+      diag.pushAttempts += group.uids.length
 
       await Promise.all(
         group.uids.map(uid =>
@@ -116,6 +149,8 @@ export async function sendMorningPricePushCore(): Promise<void> {
       )
     })
   )
+
+  return diag
 }
 
 // ─── scheduled CF ───────────────────────────────────────────────────────────
