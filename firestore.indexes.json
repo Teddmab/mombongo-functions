@@ -359,6 +359,15 @@
         { "fieldPath": "status",      "order": "ASCENDING" },
         { "fieldPath": "depositedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "province_prices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "commodity",  "order": "ASCENDING" },
+        { "fieldPath": "province",   "order": "ASCENDING" },
+        { "fieldPath": "updatedAt",  "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
