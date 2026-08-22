@@ -583,7 +583,8 @@ export { markNotificationsRead } from './notifications/markNotificationsRead'
 
 // ─── Config / Exchange Rate (SGN-07) ─────────────────────────────────────────
 
-export { getExchangeRate } from './config/getExchangeRate'
+export { getExchangeRate }       from './config/getExchangeRate'
+export { getDidYouKnowFacts }   from './config/getDidYouKnowFacts'
 
 // ─── Agent Real Data (SG-10) ─────────────────────────────────────────────────
 
@@ -651,6 +652,7 @@ export { createAgroAdvisory }        from './admin/createAgroAdvisory'
 export { completeOnboarding }  from './profile/completeOnboarding'
 export { getProvincePrices }   from './intelligence/getProvincePrices'
 export { sendMorningPricePush }         from './notifications/sendMorningPricePush'
+export { getMomBongoScore }    from './farmer/getMomBongoScore'
 
 // ─── Admin: Notification tools (SAN-01) ───────────────────────────────────────
 
