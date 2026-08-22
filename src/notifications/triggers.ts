@@ -4,6 +4,46 @@ import { sendPush } from './sendPush'
 
 const db = admin.firestore()
 
+// ─── Shared helpers ─────────────────────────────────────────────────────────
+
+async function isStatusUpdateEnabled(uid: string): Promise<boolean> {
+  const snap = await db.collection('users').doc(uid).get()
+  if (!snap.exists) return true
+  const prefs = (snap.data()!.notificationPrefs ?? {}) as Record<string, unknown>
+  return prefs.statusUpdates !== false
+}
+
+/**
+ * Write an in-app notification with a deterministic ID for idempotency,
+ * then send the FCM push only when the notification was freshly created.
+ */
+async function writeNotifAndPush(
+  eventKey: string,
+  uid: string,
+  type: string,
+  title: string,
+  body: string,
+  data: Record<string, string>
+): Promise<void> {
+  const notifRef = db.collection('notifications').doc(eventKey)
+  const written = await db.runTransaction(async tx => {
+    const snap = await tx.get(notifRef)
+    if (snap.exists) return false
+    tx.set(notifRef, {
+      userId: uid,
+      type,
+      title,
+      body,
+      read: false,
+      data,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+    return true
+  })
+  if (!written) return
+  await sendPush(uid, title, body, data)
+}
+
 // ─── Trigger: new investment created ────────────────────────────────────────
 // Notifies the investor when their investment is confirmed.
 
@@ -71,7 +111,26 @@ export const onDepositCompleted = functions
   })
 
 // ─── Trigger: financing application status change ────────────────────────────
-// Notifies the farmer when their application is approved or rejected.
+// Handles all status transitions; idempotent; respects notificationPrefs.
+
+const FINANCING_MESSAGES: Record<string, { title: string; body: string } | undefined> = {
+  under_review: {
+    title: '📋 Dossier en cours d\'examen',
+    body: 'Votre dossier est en cours d\'examen — décision dans 48h.',
+  },
+  approved: {
+    title: '🎉 Crédit approuvé !',
+    body: 'Votre crédit est approuvé ! Consultez les détails.',
+  },
+  rejected: {
+    title: '📋 Dossier examiné',
+    body: 'Votre dossier a été examiné — consultez les retours.',
+  },
+  disbursed: {
+    title: '💳 Crédit décaissé',
+    body: 'Votre crédit a été décaissé sur votre compte.',
+  },
+}
 
 export const onFinancingStatusChanged = functions
   .region('europe-west1')
@@ -79,27 +138,26 @@ export const onFinancingStatusChanged = functions
   .onUpdate(async change => {
     const before = change.before.data()
     const after = change.after.data()
+    const appId = change.after.id
 
     if (before.status === after.status) return
 
-    const { farmerId } = after
+    const farmerId: string = after.farmerId
     if (!farmerId) return
 
-    if (after.status === 'approved') {
-      await sendPush(
-        farmerId,
-        '🎉 Financement approuvé !',
-        `Votre demande de financement a été approuvée. Consultez l'app pour les détails.`,
-        { type: 'financing', appId: change.after.id, status: 'approved' }
-      )
-    } else if (after.status === 'rejected') {
-      await sendPush(
-        farmerId,
-        '⚠️ Demande non retenue',
-        `Votre demande de financement n'a pas été retenue. Consultez l'app pour la raison.`,
-        { type: 'financing', appId: change.after.id, status: 'rejected' }
-      )
-    }
+    const msg = FINANCING_MESSAGES[after.status as string]
+    if (!msg) return
+
+    if (!(await isStatusUpdateEnabled(farmerId))) return
+
+    await writeNotifAndPush(
+      `financing_${appId}_${after.status}`,
+      farmerId,
+      'financing_status',
+      msg.title,
+      msg.body,
+      { screen: 'financement', appId }
+    )
   })
 
 // ─── Scheduled: harvest due tomorrow ────────────────────────────────────────
