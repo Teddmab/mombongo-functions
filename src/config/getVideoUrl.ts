@@ -20,17 +20,13 @@ export const getVideoUrl = functions
       throw new functions.https.HttpsError('internal', 'storagePath manquant')
     }
 
-    const [signedUrl] = await admin
-      .storage()
-      .bucket()
-      .file(storagePath)
-      .getSignedUrl({
-        action: 'read',
-        expires: Date.now() + 24 * 60 * 60 * 1000,
-      })
+    const bucket = admin.storage().bucket()
+    const publicUrl =
+      `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+      `${encodeURIComponent(storagePath)}?alt=media`
 
     return {
-      url: signedUrl,
+      url: publicUrl,
       title: (doc.title as string | undefined) ?? slug,
       durationSec: (doc.durationSec as number | undefined) ?? 0,
     }
