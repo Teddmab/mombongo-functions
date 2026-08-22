@@ -654,10 +654,15 @@ export { getProvincePrices }   from './intelligence/getProvincePrices'
 export { sendMorningPricePush }         from './notifications/sendMorningPricePush'
 export { getMomBongoScore }    from './farmer/getMomBongoScore'
 
+// ─── Status push notifications (SU-01-05) ────────────────────────────────────
+
+export { onListingFirstView, onAgentReportCreated } from './notifications/statusTriggers'
+
 // ─── Admin: Notification tools (SAN-01) ───────────────────────────────────────
 
 export { adminSendPush }                from './notifications/adminSendPush'
 export { adminTriggerMorningPricePush } from './notifications/adminTriggerMorningPricePush'
+export { adminTestStatusPush }          from './admin/adminTestStatusPush'
 
 // ─── SG-01: Smart signup — role change request ───────────────────────────────
 export { createRoleChangeRequest } from './profile/createRoleChangeRequest'
