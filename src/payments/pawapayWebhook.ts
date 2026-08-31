@@ -1,5 +1,6 @@
 import * as crypto from 'crypto'
 import { admin, db, functions } from '../lib/admin'
+import { markExternalInvoicePaid, markExternalInvoiceFailed } from '../partners/markExternalInvoicePaid'
 
 export const pawapayWebhook = functions
   .runWith({ secrets: ['PAWAPAY_WEBHOOK_SECRET'] })
@@ -21,6 +22,53 @@ export const pawapayWebhook = functions
 
     const { depositId, status } = req.body as { depositId: string; status: string }
     if (!depositId) { res.status(400).send('Missing depositId'); return }
+
+    // SAI-02: PawaPay's webhook payload has no metadata, so an
+    // external-invoice deposit (vs. a Mombongo user's own deposits/{id}
+    // doc) is identified by providerRef instead — one extra query, only
+    // on this webhook path.
+    const invoiceQuery = await db
+      .collection('external_invoices')
+      .where('providerRef', '==', depositId)
+      .limit(1)
+      .get()
+
+    if (!invoiceQuery.empty) {
+      const invoiceDoc = invoiceQuery.docs[0]
+      const invoice = invoiceDoc.data()
+
+      if (status !== 'COMPLETED') {
+        await markExternalInvoiceFailed(invoiceDoc.ref)
+        res.status(200).send('OK')
+        return
+      }
+
+      const partnerSnap = await db.collection('partners').doc(invoice.partnerId).get()
+      const merchantUid = partnerSnap.data()?.merchantUid as string | undefined
+      if (!merchantUid) {
+        functions.logger.error(`No merchantUid configured for partner ${invoice.partnerId}`)
+        res.status(200).send('Partner not fully provisioned')
+        return
+      }
+
+      // Runs INSTEAD OF the deposits/{depositId} walletUsd-increment flow
+      // below — never in addition to it. No wallet credited; a
+      // transactions doc is still written for visibility, against the
+      // shared partner merchant account.
+      await markExternalInvoicePaid({
+        invoiceRef: invoiceDoc.ref,
+        merchantUid,
+        partnerId: invoice.partnerId,
+        amountUsd: invoice.amountUsd,
+        method: 'mobile_money',
+        providerRefField: 'pawapayDepositId',
+        providerRef: depositId,
+      })
+      // SAI-04's Firestore trigger reacts to the status: 'paid' write
+      // above — no direct notifier call from here.
+      res.status(200).send('OK')
+      return
+    }
 
     if (status !== 'COMPLETED') {
       await db.collection('deposits').doc(depositId).update({ status: 'failed' })
