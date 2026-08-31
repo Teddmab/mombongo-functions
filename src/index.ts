@@ -585,6 +585,7 @@ export { markNotificationsRead } from './notifications/markNotificationsRead'
 
 export { getExchangeRate }       from './config/getExchangeRate'
 export { getDidYouKnowFacts }   from './config/getDidYouKnowFacts'
+export { getVideoUrl }          from './config/getVideoUrl'
 
 // ─── Agent Real Data (SG-10) ─────────────────────────────────────────────────
 
@@ -654,10 +655,15 @@ export { getProvincePrices }   from './intelligence/getProvincePrices'
 export { sendMorningPricePush }         from './notifications/sendMorningPricePush'
 export { getMomBongoScore }    from './farmer/getMomBongoScore'
 
+// ─── Status push notifications (SU-01-05) ────────────────────────────────────
+
+export { onListingFirstView, onAgentReportCreated } from './notifications/statusTriggers'
+
 // ─── Admin: Notification tools (SAN-01) ───────────────────────────────────────
 
 export { adminSendPush }                from './notifications/adminSendPush'
 export { adminTriggerMorningPricePush } from './notifications/adminTriggerMorningPricePush'
+export { adminTestStatusPush }          from './admin/adminTestStatusPush'
 
 // ─── SG-01: Smart signup — role change request ───────────────────────────────
 export { createRoleChangeRequest } from './profile/createRoleChangeRequest'
@@ -675,3 +681,10 @@ export { getWarehouses }           from './logistics/getWarehouses'
 export { getMyWarehouseReceipts }  from './logistics/getMyWarehouseReceipts'
 export { createWarehouseReceipt }  from './logistics/createWarehouseReceipt'
 export { getAgentVisitPlan }       from './agent/getAgentVisitPlan'
+
+// ─── Sprint AI: AROM partner invoice integration (SAI-01, SAI-02, SAI-04, SAI-05)
+export { createExternalInvoice }         from './partners/createExternalInvoice'
+export { createExternalInvoiceCheckout } from './partners/createExternalInvoiceCheckout'
+export { onExternalInvoicePaid }         from './partners/notifyPartnerPaymentComplete'
+export { adminRetryPartnerNotification } from './partners/adminRetryPartnerNotification'
+export { adminProvisionPartner }         from './partners/adminProvisionPartner'
