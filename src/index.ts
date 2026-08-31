@@ -346,6 +346,14 @@ export { confirmShipment }                           from './bourse/confirmShipm
 export { confirmDelivery }                           from './bourse/confirmDelivery'
 export { getContract, getMyContracts }               from './bourse/getContracts'
 
+// ─── Sprint DP: Direct Harvest Purchase & Invoicing ─────────────────────────
+// New parallel path alongside bourse above: offer → farmer selects → invoice
+// → pay, reusing Sprint AI's invoice/checkout/notification machinery rather
+// than bourse's negotiation/escrow machinery. See SDP-00-overview.md.
+
+export { createHarvestOffer }                        from './marketplace/createHarvestOffer'
+export { getListingOffers, getMyHarvestOffers }       from './marketplace/getHarvestOffers'
+
 // ─── Financing ────────────────────────────────────────────────────────────────
 
 export const getFarmers = functions
