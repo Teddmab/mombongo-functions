@@ -546,6 +546,25 @@ export { deleteCulture }                 from './exploitation/deleteCulture'
 export { deleteMyExploitation }          from './exploitation/deleteMyExploitation'
 export { getExploitationPhotoUploadUrl } from './exploitation/getExploitationPhotoUploadUrl'
 
+// ─── Crop calendar / weather alerts ─────────────────────────────────────────
+// These were already live in mombongo-dev but had never been committed to
+// trunk (deployed manually from local disk, same anti-pattern flagged in
+// CLAUDE.md's "PR before deploy, always" section) — this is what surfaced as
+// CI's automatic deploy trying to delete them as "not found in local source"
+// once a normal trunk merge (feature/sdp-01-offers) finally triggered a
+// clean-checkout deploy. Committing them here as-is, matching what's
+// actually live, so future deploys stop trying to delete real functionality.
+
+export { getCropCalendar }        from './exploitation/getCropCalendar'
+export { checkCropAlerts }        from './exploitation/checkCropAlerts'
+export { getWeatherForecast }     from './exploitation/getWeatherForecast'
+export { getPlantingWindows }     from './exploitation/getPlantingWindows'
+export { getIrrigationAdvice }    from './exploitation/getIrrigationAdvice'
+export { refreshProvinceWeather } from './exploitation/refreshProvinceWeather'
+export { checkDroughtRisk }       from './farmer/checkDroughtRisk'
+export { checkSprayConditions }   from './farmer/checkSprayConditions'
+export { checkStormAlerts }       from './farmer/checkStormAlerts'
+
 // ─── Profile ──────────────────────────────────────────────────────────────────
 
 export { getProfilePhotoUploadUrl } from './profile/getProfilePhotoUploadUrl'
