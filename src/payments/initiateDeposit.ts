@@ -12,8 +12,28 @@ const OPERATOR_MAP: Record<string, string> = {
   orange: 'ORANGE_COD',
 }
 
-// Fixed USD→CDF rate used for PawaPay submissions (wallet always stored in USD)
-const USD_TO_CDF = 2800
+/**
+ * Reads the live USD→CDF exchange rate from config/exchange_rate in Firestore.
+ * Falls back to 2800 with a warning if the document is absent or the value is invalid.
+ */
+export async function getUsdToCdf(firestoreDb: FirebaseFirestore.Firestore): Promise<number> {
+  try {
+    const snap = await firestoreDb.collection('config').doc('exchange_rate').get()
+    if (!snap.exists) {
+      console.warn('[initiateDeposit] config/exchange_rate not found — using fallback rate 2800')
+      return 2800
+    }
+    const rate = snap.data()?.usdToCdf
+    if (typeof rate !== 'number' || rate <= 0) {
+      console.warn(`[initiateDeposit] config/exchange_rate.usdToCdf invalid (${rate}) — using fallback 2800`)
+      return 2800
+    }
+    return rate
+  } catch (err) {
+    console.warn('[initiateDeposit] Failed to read exchange rate — using fallback 2800', err)
+    return 2800
+  }
+}
 
 export const initiateDeposit = functions
   .runWith({ secrets: ['PAWAPAY_API_KEY'] })
@@ -39,7 +59,8 @@ export const initiateDeposit = functions
 
     const depositId = crypto.randomUUID()
     const apiKey = process.env.PAWAPAY_API_KEY
-    const amountCdf = Math.round(amountUsd * USD_TO_CDF)
+    const usdToCdf = await getUsdToCdf(db)
+    const amountCdf = Math.round(amountUsd * usdToCdf)
 
     await db.collection('deposits').doc(depositId).set({
       userId: uid,

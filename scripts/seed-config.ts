@@ -12,12 +12,15 @@ if (!admin.apps.length) {
 const db = admin.firestore()
 
 async function seed() {
-  // ── SF-03: exchange rate used by getFarmPnlSummary / getCropProfitability ──
+  // ── Bootstrap fallback only. refreshExchangeRate (scheduled, every 6h)
+  // keeps this doc live from open.er-api.com — this seed just avoids the
+  // 2800 hardcoded fallback in getUsdToCdf being the only value until the
+  // first scheduled run completes after a fresh deploy. ──
   await db.collection('config').doc('exchange_rate').set(
     { usdToCdf: 2800 },
     { merge: true }
   )
-  console.log('✓ config/exchange_rate  →  usdToCdf: 2800')
+  console.log('✓ config/exchange_rate  →  usdToCdf: 2800 (bootstrap — refreshExchangeRate will overwrite within 6h)')
 
   // ── SF-04: sample province_prices for checkFarmerPriceAlerts ───────────────
   const now = admin.firestore.Timestamp.now()

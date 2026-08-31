@@ -611,6 +611,7 @@ export { markNotificationsRead } from './notifications/markNotificationsRead'
 // ─── Config / Exchange Rate (SGN-07) ─────────────────────────────────────────
 
 export { getExchangeRate }       from './config/getExchangeRate'
+export { refreshExchangeRate }  from './config/refreshExchangeRate'
 export { getDidYouKnowFacts }   from './config/getDidYouKnowFacts'
 export { getVideoUrl }          from './config/getVideoUrl'
 
