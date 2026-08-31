@@ -38,38 +38,38 @@ describe('payHarvestInvoice', () => {
   })
 
   it('rejects an unauthenticated caller', async () => {
-    await expect((payHarvestInvoice as unknown as Handler)({ invoiceId: 'i1', method: 'card' }, {})).rejects.toThrow('Login required')
+    await expect((payHarvestInvoice as unknown as Handler)({ invoiceId: 'i1', method: 'mobile_money' }, {})).rejects.toThrow('Login required')
   })
 
   it('rejects a missing invoice', async () => {
     await expect(
-      (payHarvestInvoice as unknown as Handler)({ invoiceId: 'nope', method: 'card' }, { auth: { uid: 'm1' } }),
+      (payHarvestInvoice as unknown as Handler)({ invoiceId: 'nope', method: 'mobile_money' }, { auth: { uid: 'm1' } }),
     ).rejects.toThrow('Invoice not found')
   })
 
   it("rejects paying someone else's invoice", async () => {
     invoices['i1'] = { merchantId: 'm2', status: 'pending', amountUsd: 10 }
     await expect(
-      (payHarvestInvoice as unknown as Handler)({ invoiceId: 'i1', method: 'card' }, { auth: { uid: 'm1' } }),
+      (payHarvestInvoice as unknown as Handler)({ invoiceId: 'i1', method: 'mobile_money' }, { auth: { uid: 'm1' } }),
     ).rejects.toThrow('Invoice not found')
   })
 
   it('rejects an invoice not in pending status', async () => {
     invoices['i1'] = { merchantId: 'm1', status: 'paid', amountUsd: 10 }
     await expect(
-      (payHarvestInvoice as unknown as Handler)({ invoiceId: 'i1', method: 'card' }, { auth: { uid: 'm1' } }),
+      (payHarvestInvoice as unknown as Handler)({ invoiceId: 'i1', method: 'mobile_money' }, { auth: { uid: 'm1' } }),
     ).rejects.toThrow('Already in progress or resolved')
   })
 
   it('calls createCheckoutForInvoiceCore with partnerId null and merchantUid = caller uid', async () => {
     invoices['i1'] = { merchantId: 'm1', status: 'pending', amountUsd: 10 }
-    coreMock.mockResolvedValueOnce({ ok: true, providerRef: 'pi_1', responseBody: { clientSecret: 'x' } })
+    coreMock.mockResolvedValueOnce({ ok: true, providerRef: 'dep_1', responseBody: { depositStatus: 'ACCEPTED' } })
     const result = await (payHarvestInvoice as unknown as Handler)(
-      { invoiceId: 'i1', method: 'card' },
+      { invoiceId: 'i1', method: 'mobile_money', phone: '+243900000000', operator: 'mpesa' },
       { auth: { uid: 'm1' } },
     )
-    expect(result).toEqual({ status: 'checkout_created', providerRef: 'pi_1', clientSecret: 'x' })
-    expect(coreMock).toHaveBeenCalledWith(expect.objectContaining({ merchantUid: 'm1', partnerId: null, method: 'card' }))
+    expect(result).toEqual({ status: 'checkout_created', providerRef: 'dep_1', depositStatus: 'ACCEPTED' })
+    expect(coreMock).toHaveBeenCalledWith(expect.objectContaining({ merchantUid: 'm1', partnerId: null, method: 'mobile_money' }))
   })
 
   it('surfaces a missing_phone_operator core result as invalid-argument', async () => {
@@ -84,7 +84,10 @@ describe('payHarvestInvoice', () => {
     invoices['i1'] = { merchantId: 'm1', status: 'pending', amountUsd: 10 }
     coreMock.mockResolvedValueOnce({ ok: false, kind: 'provider_error', message: 'boom' })
     await expect(
-      (payHarvestInvoice as unknown as Handler)({ invoiceId: 'i1', method: 'card' }, { auth: { uid: 'm1' } }),
+      (payHarvestInvoice as unknown as Handler)(
+        { invoiceId: 'i1', method: 'mobile_money', phone: '+243900000000', operator: 'mpesa' },
+        { auth: { uid: 'm1' } },
+      ),
     ).rejects.toThrow('boom')
   })
 })

@@ -2,13 +2,10 @@ import { FieldValue } from 'firebase-admin/firestore'
 import { db } from '../lib/admin'
 
 /**
- * Shared by stripeWebhook.ts's and pawapayWebhook.ts's external-invoice
- * branches (SAI-02) — unlike the onCall/wallet-credit functions, this is
- * genuinely the same operation from two completion sources, so it's
- * extracted once rather than duplicated. Marks external_invoices paid
- * and writes a transactions doc against the shared merchant account for
- * visibility (Teddy's requirement) — walletUsd is deliberately never
- * touched here.
+ * Called from pawapayWebhook.ts's external-invoice branch (SAI-02).
+ * Marks external_invoices paid and writes a transactions doc against the
+ * shared merchant account for visibility (Teddy's requirement) —
+ * walletUsd is deliberately never touched here.
  *
  * Idempotent: a second call for an already-`paid` invoice (e.g. a
  * webhook retry) is a no-op, mirroring the existing webhooks' own
@@ -19,8 +16,8 @@ export async function markExternalInvoicePaid(input: {
   merchantUid: string
   partnerId: string | null // null for an in-app (SDP-03) payment — no partner involved
   amountUsd: number
-  method: 'card' | 'mobile_money'
-  providerRefField: 'stripePaymentIntentId' | 'pawapayDepositId'
+  method: 'mobile_money'
+  providerRefField: 'pawapayDepositId'
   providerRef: string
 }): Promise<void> {
   const now = FieldValue.serverTimestamp()

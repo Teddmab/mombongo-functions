@@ -19,10 +19,9 @@ export const createExternalInvoice = functions
     const partnerId = req.header('x-partner-id')
     const signature = req.header('x-partner-signature')
     // req.rawBody is preserved by Functions v1's onRequest before body
-    // parsing — same mechanism stripeWebhook.ts relies on. Deliberately
-    // not JSON.stringify(req.body) — see SAI-01's audit note on why
-    // that's a weaker convention PawaPay's own webhooks happen to get
-    // away with.
+    // parsing. Deliberately not JSON.stringify(req.body) — see SAI-01's
+    // audit note on why that's a weaker convention PawaPay's own webhooks
+    // happen to get away with.
     const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody
 
     const valid = await verifyPartnerSignature(partnerId, rawBody, signature)
@@ -49,8 +48,8 @@ export const createExternalInvoice = functions
     const partnerSnap = await db.collection('partners').doc(partnerId as string).get()
     const partnerData = partnerSnap.data()!
 
-    // Idempotency — same discipline as the existing PawaPay/Stripe
-    // webhooks (guard on a natural key before writing).
+    // Idempotency — same discipline as the existing PawaPay webhooks
+    // (guard on a natural key before writing).
     const existing = await db
       .collection('external_invoices')
       .where('partnerId', '==', partnerId)

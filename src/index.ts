@@ -253,8 +253,6 @@ export { pawapayWebhook }              from './payments/pawapayWebhook'
 export { initiateWithdraw }            from './payments/initiateWithdraw'
 export { getWithdrawStatus }           from './payments/getWithdrawStatus'
 export { pawapayPayoutWebhook }        from './payments/pawapayPayoutWebhook'
-export { createStripePaymentIntent }   from './payments/createStripePaymentIntent'
-export { stripeWebhook }               from './payments/stripeWebhook'
 
 // ─── Push Notifications (FCM triggers) ────────────────────────────────────────
 

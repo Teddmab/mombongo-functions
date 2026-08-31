@@ -1,6 +1,5 @@
 import { FieldValue } from 'firebase-admin/firestore'
 import { functions } from '../lib/admin'
-import { initiateExternalInvoiceCard } from './initiateExternalInvoiceCard'
 import { initiateExternalInvoiceMobileMoney } from './initiateExternalInvoiceMobileMoney'
 
 /**
@@ -14,8 +13,10 @@ import { initiateExternalInvoiceMobileMoney } from './initiateExternalInvoiceMob
  * — SAI-02 never did this). pawapayWebhook.ts's completion branch reads
  * it from there directly instead of re-deriving it via a partner-doc
  * lookup, which is what let a null partnerId (the in-app case) silently
- * break completion — see stripeWebhook.ts/pawapayWebhook.ts's own
- * updated comments for the full story.
+ * break completion.
+ *
+ * card was removed platform-wide (never processed a real payment) —
+ * mobile_money is now the only implemented method.
  */
 export interface CreateCheckoutInput {
   invoiceRef: FirebaseFirestore.DocumentReference
@@ -23,7 +24,7 @@ export interface CreateCheckoutInput {
   amountUsd: number
   merchantUid: string
   partnerId: string | null
-  method: 'card' | 'mobile_money' | 'bank_transfer'
+  method: 'mobile_money' | 'bank_transfer'
   phone?: string
   operator?: string
 }
@@ -39,18 +40,7 @@ export async function createCheckoutForInvoiceCore(input: CreateCheckoutInput): 
   let providerRef: string
 
   try {
-    if (input.method === 'card') {
-      const intent = await initiateExternalInvoiceCard({
-        amountUsd: input.amountUsd,
-        invoiceId: input.invoiceId,
-        partnerId: input.partnerId,
-        merchantUid: input.merchantUid,
-      })
-      // Matches createStripePaymentIntent.ts's existing response shape
-      // (clientSecret, not a hosted redirect URL).
-      responseBody = { clientSecret: intent.clientSecret }
-      providerRef = intent.paymentIntentId
-    } else if (input.method === 'mobile_money') {
+    if (input.method === 'mobile_money') {
       if (!input.phone || !input.operator) {
         return { ok: false, kind: 'missing_phone_operator' }
       }

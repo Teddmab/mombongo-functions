@@ -20,10 +20,10 @@ const OPERATOR_MAP: Record<string, string> = {
  * initiateDeposit.ts's PawaPay API-call shape, but does NOT write to the
  * deposits/{depositId} collection or require context.auth — the caller
  * is a signed partner request (SAI-01). PawaPay's deposits API has no
- * metadata pass-through, so unlike Stripe there is nothing to tag the
- * deposit with on PawaPay's side — pawapayWebhook.ts's new branch
- * identifies an external-invoice-linked deposit by looking up
- * external_invoices where providerRef == depositId instead.
+ * metadata pass-through, so there is nothing to tag the deposit with on
+ * PawaPay's side — pawapayWebhook.ts's own branch identifies an
+ * external-invoice-linked deposit by looking up external_invoices where
+ * providerRef == depositId instead.
  */
 export async function initiateExternalInvoiceMobileMoney(input: {
   amountUsd: number

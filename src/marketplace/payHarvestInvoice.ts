@@ -15,7 +15,7 @@ export const payHarvestInvoice = functions
 
     const { invoiceId, method, phone, operator } = (data ?? {}) as {
       invoiceId?: string
-      method?: 'card' | 'mobile_money'
+      method?: 'mobile_money'
       phone?: string
       operator?: string
     }
