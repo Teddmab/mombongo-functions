@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin'
 import * as functions from 'firebase-functions'
 import Stripe from 'stripe'
+import { markExternalInvoicePaid } from '../partners/markExternalInvoicePaid'
 
 const db = admin.firestore()
 
@@ -35,6 +36,33 @@ export const stripeWebhook = functions
     }
 
     const pi = event.data.object as Stripe.PaymentIntent
+
+    // SAI-02: external-invoice payments (AROM etc.) branch off entirely
+    // here — runs INSTEAD OF the walletUsd-increment block below, never
+    // in addition to it. No wallet is credited; a transactions doc is
+    // still written for visibility, against the shared partner merchant
+    // account, not a real end-user.
+    if (pi.metadata.kind === 'external_invoice') {
+      const { invoiceId, partnerId, merchantUid } = pi.metadata
+      if (!invoiceId || !partnerId || !merchantUid) {
+        res.status(200).send('Missing external_invoice metadata')
+        return
+      }
+      await markExternalInvoicePaid({
+        invoiceRef: db.collection('external_invoices').doc(invoiceId),
+        merchantUid,
+        partnerId,
+        amountUsd: pi.amount / 100,
+        method: 'card',
+        providerRefField: 'stripePaymentIntentId',
+        providerRef: pi.id,
+      })
+      // SAI-04's Firestore trigger reacts to the status: 'paid' write
+      // above — no direct notifier call from here.
+      res.status(200).send('OK')
+      return
+    }
+
     const { uid, depositId } = pi.metadata
     if (!uid || !depositId) {
       res.status(200).send('Missing metadata')
