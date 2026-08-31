@@ -30,6 +30,20 @@ describe('sendSignedPartnerWebhook', () => {
     expect(addMock).not.toHaveBeenCalled()
   })
 
+  it('stamps event onto the sent body and signs the resulting body, not the original payload', async () => {
+    const crypto = await import('crypto')
+    global.fetch = vi.fn().mockResolvedValue({ ok: true }) as unknown as typeof fetch
+    await sendSignedPartnerWebhook({
+      webhookUrl: 'https://x.com/hook', outboundSecret: 'secret', payload: { invoiceId: 'inv1' },
+      kind: 'invoice_issued', partnerId: 'arom', invoiceId: 'inv1', onSuccess: vi.fn(),
+    })
+    const [, options] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    const sentBody = JSON.parse(options.body)
+    expect(sentBody).toEqual({ event: 'invoice_issued', invoiceId: 'inv1' })
+    const expectedSignature = crypto.createHmac('sha256', 'secret').update(JSON.stringify(sentBody)).digest('hex')
+    expect(options.headers['x-mombongo-signature']).toBe(expectedSignature)
+  })
+
   it('retries on failure, then dead-letters with the kind tagged, after exhausting attempts', async () => {
     vi.useFakeTimers()
     global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 }) as unknown as typeof fetch
