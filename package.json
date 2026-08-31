@@ -9,6 +9,8 @@
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "npm run build && firebase deploy --only functions",
     "seed:products": "npx ts-node -e 'require(\"./src/scripts/seedProducts\")'"
@@ -23,6 +25,7 @@
     "@types/node": "^20.0.0",
     "@types/uuid": "^10.0.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vitest": "^4.1.11"
   }
 }
