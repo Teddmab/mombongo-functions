@@ -5,15 +5,16 @@ import { createCheckoutForInvoiceCore } from './createCheckoutForInvoiceCore'
 /**
  * Given a pending external_invoices doc (SAI-01) and a chosen payment
  * method, creates the matching provider session. Same partner-signature
- * auth as createExternalInvoice. Does NOT reuse initiateDeposit.ts/
- * createStripePaymentIntent.ts — those credit a Mombongo user's wallet on
- * completion, which doesn't apply here (see SAI-02's audit note). Instead
- * calls new, purpose-built functions that share the provider-calling
- * shape but write nothing to deposits/ or walletUsd.
+ * auth as createExternalInvoice. Does NOT reuse initiateDeposit.ts —
+ * that credits a Mombongo user's wallet on completion, which doesn't
+ * apply here (see SAI-02's audit note). Instead calls a new,
+ * purpose-built function that shares the provider-calling shape but
+ * writes nothing to deposits/ or walletUsd.
  *
  * Provider-calling body extracted to createCheckoutForInvoiceCore.ts
  * (SDP-03), shared with payHarvestInvoice.ts's session-authenticated
- * equivalent.
+ * equivalent. card support was removed platform-wide (never processed a
+ * real payment) — mobile_money is the only implemented method today.
  */
 export const createExternalInvoiceCheckout = functions
   .region('europe-west1')
@@ -35,7 +36,7 @@ export const createExternalInvoiceCheckout = functions
 
     const { invoiceId, method, phone, operator } = req.body as {
       invoiceId?: string
-      method?: 'mobile_money' | 'card' | 'bank_transfer'
+      method?: 'mobile_money' | 'bank_transfer'
       phone?: string
       operator?: string
     }
