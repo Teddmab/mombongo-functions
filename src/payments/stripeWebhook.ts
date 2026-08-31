@@ -44,14 +44,19 @@ export const stripeWebhook = functions
     // account, not a real end-user.
     if (pi.metadata.kind === 'external_invoice') {
       const { invoiceId, partnerId, merchantUid } = pi.metadata
-      if (!invoiceId || !partnerId || !merchantUid) {
+      // partnerId is intentionally NOT required here — absent for an
+      // in-app (SDP-03) payment, which has no partner. Only checking
+      // invoiceId/merchantUid used to also silently drop those
+      // completions entirely (this branch just returned "Missing
+      // metadata" and never marked the invoice paid).
+      if (!invoiceId || !merchantUid) {
         res.status(200).send('Missing external_invoice metadata')
         return
       }
       await markExternalInvoicePaid({
         invoiceRef: db.collection('external_invoices').doc(invoiceId),
         merchantUid,
-        partnerId,
+        partnerId: partnerId ?? null,
         amountUsd: pi.amount / 100,
         method: 'card',
         providerRefField: 'stripePaymentIntentId',

@@ -43,11 +43,22 @@ export const pawapayWebhook = functions
         return
       }
 
-      const partnerSnap = await db.collection('partners').doc(invoice.partnerId).get()
-      const merchantUid = partnerSnap.data()?.merchantUid as string | undefined
+      // merchantUid is written onto the invoice at checkout-creation time
+      // (createCheckoutForInvoiceCore, SDP-03) — read it directly rather
+      // than re-deriving via a partner-doc lookup. That lookup used
+      // invoice.partnerId unconditionally, which for an in-app (SDP-03)
+      // payment is null — db.collection('partners').doc(null) would never
+      // resolve a merchantUid, silently stranding the invoice at
+      // checkout_created forever. Falls back to the old lookup only for
+      // an invoice whose checkout was created before this field existed.
+      let merchantUid = invoice.merchantUid as string | undefined
+      if (!merchantUid && invoice.partnerId) {
+        const partnerSnap = await db.collection('partners').doc(invoice.partnerId).get()
+        merchantUid = partnerSnap.data()?.merchantUid as string | undefined
+      }
       if (!merchantUid) {
-        functions.logger.error(`No merchantUid configured for partner ${invoice.partnerId}`)
-        res.status(200).send('Partner not fully provisioned')
+        functions.logger.error(`No merchantUid resolvable for invoice ${invoiceDoc.id} (partnerId=${invoice.partnerId ?? 'null'})`)
+        res.status(200).send('Merchant not resolvable')
         return
       }
 
@@ -58,7 +69,7 @@ export const pawapayWebhook = functions
       await markExternalInvoicePaid({
         invoiceRef: invoiceDoc.ref,
         merchantUid,
-        partnerId: invoice.partnerId,
+        partnerId: invoice.partnerId ?? null,
         amountUsd: invoice.amountUsd,
         method: 'mobile_money',
         providerRefField: 'pawapayDepositId',

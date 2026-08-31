@@ -22,7 +22,7 @@ function getStripe(): Stripe {
 export async function initiateExternalInvoiceCard(input: {
   amountUsd: number
   invoiceId: string
-  partnerId: string
+  partnerId: string | null
   merchantUid: string
 }): Promise<{ paymentIntentId: string; clientSecret: string | null }> {
   const stripe = getStripe()
@@ -32,7 +32,10 @@ export async function initiateExternalInvoiceCard(input: {
     metadata: {
       kind: 'external_invoice',
       invoiceId: input.invoiceId,
-      partnerId: input.partnerId,
+      // Stripe metadata values must be strings — omitted entirely for an
+      // in-app (SDP-03) payment, which has no partner. stripeWebhook.ts's
+      // completion branch must not require this key to be present.
+      ...(input.partnerId ? { partnerId: input.partnerId } : {}),
       merchantUid: input.merchantUid,
     },
     automatic_payment_methods: { enabled: true },

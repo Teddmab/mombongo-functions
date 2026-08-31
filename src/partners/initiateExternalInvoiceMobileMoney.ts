@@ -1,13 +1,11 @@
 import * as crypto from 'crypto'
 import axios from 'axios'
+import { db } from '../lib/admin'
+import { getUsdToCdf } from '../payments/initiateDeposit'
 
 const PAWAPAY_BASE = process.env.PAWAPAY_ENV === 'sandbox'
   ? 'https://api.sandbox.pawapay.io'
   : 'https://api.pawapay.cloud'
-
-// Matches initiateDeposit.ts's current fixed USD→CDF rate — that file's
-// own value isn't exported, so this is the same literal, not an import.
-const USD_TO_CDF = 2800
 
 // PawaPay DRC correspondent codes — duplicated from initiateDeposit.ts's
 // OPERATOR_MAP (not exported there); same 3-entry map, low churn.
@@ -38,7 +36,8 @@ export async function initiateExternalInvoiceMobileMoney(input: {
 
   const depositId = crypto.randomUUID()
   const apiKey = process.env.PAWAPAY_API_KEY
-  const amountCdf = Math.round(input.amountUsd * USD_TO_CDF)
+  const usdToCdf = await getUsdToCdf(db)
+  const amountCdf = Math.round(input.amountUsd * usdToCdf)
 
   let response
   try {
