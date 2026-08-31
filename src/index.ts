@@ -680,6 +680,7 @@ export { updateShipmentStatus }    from './logistics/updateShipmentStatus'
 export { getWarehouses }           from './logistics/getWarehouses'
 export { getMyWarehouseReceipts }  from './logistics/getMyWarehouseReceipts'
 export { createWarehouseReceipt }  from './logistics/createWarehouseReceipt'
+export { getAgentVisitPlan }       from './agent/getAgentVisitPlan'
 
 // ─── Sprint AI: AROM partner invoice integration (SAI-01, SAI-02, SAI-04, SAI-05)
 export { createExternalInvoice }         from './partners/createExternalInvoice'
