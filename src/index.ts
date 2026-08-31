@@ -585,6 +585,7 @@ export { markNotificationsRead } from './notifications/markNotificationsRead'
 
 export { getExchangeRate }       from './config/getExchangeRate'
 export { getDidYouKnowFacts }   from './config/getDidYouKnowFacts'
+export { getVideoUrl }          from './config/getVideoUrl'
 
 // ─── Agent Real Data (SG-10) ─────────────────────────────────────────────────
 
