@@ -717,3 +717,4 @@ export { createExternalInvoiceCheckout } from './partners/createExternalInvoiceC
 export { onExternalInvoicePaid }         from './partners/notifyPartnerPaymentComplete'
 export { adminRetryPartnerNotification } from './partners/adminRetryPartnerNotification'
 export { adminProvisionPartner }         from './partners/adminProvisionPartner'
+export { adminUpdatePartnerWebhookUrl }  from './partners/adminUpdatePartnerWebhookUrl'

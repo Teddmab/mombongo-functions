@@ -1,5 +1,6 @@
 import { db, functions } from '../lib/admin'
 import { provisionPartnerCore, type ProvisionPartnerInput } from './provisionPartnerCore'
+import { validateWebhookUrl } from '../lib/validateWebhookUrl'
 
 /**
  * Admin-console entry point for partner onboarding — same
@@ -37,6 +38,11 @@ export const adminProvisionPartner = functions
 
     if (!body.partnerId || !body.partnerName || !body.merchantMode)
       throw new functions.https.HttpsError('invalid-argument', 'partnerId, partnerName, and merchantMode are required')
+
+    if (body.webhookUrl) {
+      const check = validateWebhookUrl(body.webhookUrl)
+      if (!check.valid) throw new functions.https.HttpsError('invalid-argument', check.reason)
+    }
 
     let input: ProvisionPartnerInput
     if (body.merchantMode === 'existing') {
