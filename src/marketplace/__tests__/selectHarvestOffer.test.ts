@@ -45,6 +45,11 @@ vi.mock('../../payments/initiateDeposit', () => ({
   getUsdToCdf: vi.fn(async () => 2800),
 }))
 
+const { notifyPartnerInvoiceIssuedMock } = vi.hoisted(() => ({ notifyPartnerInvoiceIssuedMock: vi.fn() }))
+vi.mock('../../partners/notifyPartnerInvoiceIssued', () => ({
+  notifyPartnerInvoiceIssued: notifyPartnerInvoiceIssuedMock,
+}))
+
 import { selectHarvestOffer } from '../selectHarvestOffer'
 
 type Handler = (data: unknown, context: { auth?: { uid: string } }) => Promise<unknown>
@@ -108,6 +113,18 @@ describe('selectHarvestOffer', () => {
     await (selectHarvestOffer as unknown as Handler)({ offerId: 'o1' }, { auth: { uid: 'farmer-1' } })
     expect(tx.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'o2' }), expect.objectContaining({ status: 'declined' }))
     expect(tx.update).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'o1' }), expect.objectContaining({ status: 'declined' }))
+  })
+
+  it('does not notify a partner for an in-app (no partnerId) offer', async () => {
+    offers['o1'] = { farmerId: 'farmer-1', status: 'pending', listingId: 'l1', merchantId: 'm1', partnerId: null, offerQuantityKg: 10, offerPricePerKgCdf: 2800 }
+    await (selectHarvestOffer as unknown as Handler)({ offerId: 'o1' }, { auth: { uid: 'farmer-1' } })
+    expect(notifyPartnerInvoiceIssuedMock).not.toHaveBeenCalled()
+  })
+
+  it('notifies the partner when the winning offer came from the partner API', async () => {
+    offers['o1'] = { farmerId: 'farmer-1', status: 'pending', listingId: 'l1', merchantId: 'm1', partnerId: 'arom', offerQuantityKg: 10, offerPricePerKgCdf: 2800 }
+    const result = await (selectHarvestOffer as unknown as Handler)({ offerId: 'o1' }, { auth: { uid: 'farmer-1' } })
+    expect(notifyPartnerInvoiceIssuedMock).toHaveBeenCalledWith((result as { invoiceId: string }).invoiceId)
   })
 
   it('reads before writing inside the transaction (Firestore requirement)', async () => {
