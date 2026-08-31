@@ -353,6 +353,7 @@ export { createHarvestOffer }                        from './marketplace/createH
 export { getListingOffers, getMyHarvestOffers }       from './marketplace/getHarvestOffers'
 export { selectHarvestOffer }                        from './marketplace/selectHarvestOffer'
 export { payHarvestInvoice }                          from './marketplace/payHarvestInvoice'
+export { getMyHarvestInvoices }                       from './marketplace/getMyHarvestInvoices'
 
 // ─── Financing ────────────────────────────────────────────────────────────────
 
