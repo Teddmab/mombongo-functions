@@ -1,8 +1,6 @@
-import { FieldValue } from 'firebase-admin/firestore'
 import { db, functions } from '../lib/admin'
 import { verifyPartnerSignature } from './verifyPartnerSignature'
-import { initiateExternalInvoiceCard } from './initiateExternalInvoiceCard'
-import { initiateExternalInvoiceMobileMoney } from './initiateExternalInvoiceMobileMoney'
+import { createCheckoutForInvoiceCore } from './createCheckoutForInvoiceCore'
 
 /**
  * Given a pending external_invoices doc (SAI-01) and a chosen payment
@@ -12,6 +10,10 @@ import { initiateExternalInvoiceMobileMoney } from './initiateExternalInvoiceMob
  * completion, which doesn't apply here (see SAI-02's audit note). Instead
  * calls new, purpose-built functions that share the provider-calling
  * shape but write nothing to deposits/ or walletUsd.
+ *
+ * Provider-calling body extracted to createCheckoutForInvoiceCore.ts
+ * (SDP-03), shared with payHarvestInvoice.ts's session-authenticated
+ * equivalent.
  */
 export const createExternalInvoiceCheckout = functions
   .region('europe-west1')
@@ -66,54 +68,27 @@ export const createExternalInvoiceCheckout = functions
       return
     }
 
-    let responseBody: Record<string, unknown>
-    let providerRef: string
+    const result = await createCheckoutForInvoiceCore({
+      invoiceRef: invoiceSnap.ref,
+      invoiceId,
+      amountUsd: invoice.amountUsd,
+      merchantUid,
+      partnerId: partnerId as string,
+      method,
+      phone,
+      operator,
+    })
 
-    try {
-      if (method === 'card') {
-        const intent = await initiateExternalInvoiceCard({
-          amountUsd: invoice.amountUsd,
-          invoiceId,
-          partnerId: partnerId as string,
-          merchantUid,
-        })
-        // Matches createStripePaymentIntent.ts's existing response shape
-        // (clientSecret, not a hosted redirect URL) — AROM embeds
-        // Stripe.js client-side.
-        responseBody = { clientSecret: intent.clientSecret }
-        providerRef = intent.paymentIntentId
-      } else if (method === 'mobile_money') {
-        if (!phone || !operator) {
-          res.status(400).send('phone and operator required for mobile_money')
-          return
-        }
-        // PawaPay's flow is a phone-push prompt, not a URL — there is no
-        // checkout page to redirect to. The response here is just an
-        // acceptance status; completion arrives via SAI-04's webhook.
-        const deposit = await initiateExternalInvoiceMobileMoney({
-          amountUsd: invoice.amountUsd,
-          phone,
-          operator,
-        })
-        responseBody = { depositStatus: deposit.status }
-        providerRef = deposit.depositId
-      } else {
-        // bank_transfer — see SAI-03, provider not yet chosen.
+    if (!result.ok) {
+      if (result.kind === 'missing_phone_operator') {
+        res.status(400).send('phone and operator required for mobile_money')
+      } else if (result.kind === 'bank_transfer_unimplemented') {
         res.status(501).send('Bank transfer not yet implemented')
-        return
+      } else {
+        res.status(502).send(result.message)
       }
-    } catch (err) {
-      functions.logger.error('createExternalInvoiceCheckout: provider call failed', err)
-      res.status(502).send(err instanceof Error ? err.message : 'Provider error')
       return
     }
 
-    await invoiceSnap.ref.update({
-      status: 'checkout_created',
-      method,
-      providerRef,
-      checkoutCreatedAt: FieldValue.serverTimestamp(),
-    })
-
-    res.status(200).json({ status: 'checkout_created', providerRef, ...responseBody })
+    res.status(200).json({ status: 'checkout_created', providerRef: result.providerRef, ...result.responseBody })
   })

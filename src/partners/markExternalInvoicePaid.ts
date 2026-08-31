@@ -17,7 +17,7 @@ import { db } from '../lib/admin'
 export async function markExternalInvoicePaid(input: {
   invoiceRef: FirebaseFirestore.DocumentReference
   merchantUid: string
-  partnerId: string
+  partnerId: string | null // null for an in-app (SDP-03) payment — no partner involved
   amountUsd: number
   method: 'card' | 'mobile_money'
   providerRefField: 'stripePaymentIntentId' | 'pawapayDepositId'

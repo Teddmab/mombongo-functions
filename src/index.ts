@@ -354,6 +354,7 @@ export { getContract, getMyContracts }               from './bourse/getContracts
 export { createHarvestOffer }                        from './marketplace/createHarvestOffer'
 export { getListingOffers, getMyHarvestOffers }       from './marketplace/getHarvestOffers'
 export { selectHarvestOffer }                        from './marketplace/selectHarvestOffer'
+export { payHarvestInvoice }                          from './marketplace/payHarvestInvoice'
 
 // ─── Financing ────────────────────────────────────────────────────────────────
 
