@@ -719,3 +719,7 @@ export { onExternalInvoicePaid }         from './partners/notifyPartnerPaymentCo
 export { adminRetryPartnerNotification } from './partners/adminRetryPartnerNotification'
 export { adminProvisionPartner }         from './partners/adminProvisionPartner'
 export { adminUpdatePartnerWebhookUrl }  from './partners/adminUpdatePartnerWebhookUrl'
+
+// ─── Sprint DP: partner API extension (SDP-04) ──────────────────────────────
+export { getExternalPublishedListings }  from './partners/getExternalPublishedListings'
+export { createExternalHarvestOffer }    from './partners/createExternalHarvestOffer'

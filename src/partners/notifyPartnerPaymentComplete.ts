@@ -1,16 +1,12 @@
-import * as crypto from 'crypto'
 import { FieldValue } from 'firebase-admin/firestore'
 import { functions, db } from '../lib/admin'
+import { sendSignedPartnerWebhook } from './sendSignedPartnerWebhook'
 
 interface NotifyPayload {
   externalInvoiceId: string
   status: 'paid' | 'failed'
   amountUsd: number
   paidAt: string
-}
-
-function signPayload(secret: string, payload: NotifyPayload): string {
-  return crypto.createHmac('sha256', secret).update(JSON.stringify(payload)).digest('hex')
 }
 
 /**
@@ -60,37 +56,16 @@ export async function notifyPartnerPaymentComplete(
     amountUsd: invoice.amountUsd,
     paidAt: new Date().toISOString(),
   }
-  const signature = signPayload(outboundSecret, payload)
 
-  // Simple 3-try exponential backoff — nothing in this codebase
-  // currently retries an outbound call, since none existed before this
-  // story. Every exhausted failure is logged to a dead-letter
-  // collection an admin can see and manually retry (SAI-05).
-  const MAX_ATTEMPTS = 3
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    try {
-      const res = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-mombongo-signature': signature },
-        body: JSON.stringify(payload),
-      })
-      if (res.ok) {
-        await invoiceSnap.ref.update({ notifiedAt: FieldValue.serverTimestamp() })
-        return
-      }
-      throw new Error(`AROM webhook returned ${res.status}`)
-    } catch (err) {
-      functions.logger.warn(`notifyPartnerPaymentComplete attempt ${attempt} failed`, err)
-      if (attempt === MAX_ATTEMPTS) {
-        await db.collection('outbound_notification_failures').add({
-          invoiceId,
-          partnerId: invoice.partnerId,
-          error: String(err),
-          failedAt: FieldValue.serverTimestamp(),
-        })
-      } else {
-        await new Promise((r) => setTimeout(r, 2 ** attempt * 1000))
-      }
-    }
-  }
+  await sendSignedPartnerWebhook({
+    webhookUrl,
+    outboundSecret,
+    payload,
+    kind: 'payment_complete',
+    partnerId: invoice.partnerId,
+    invoiceId,
+    onSuccess: async () => {
+      await invoiceSnap.ref.update({ notifiedAt: FieldValue.serverTimestamp() })
+    },
+  })
 }

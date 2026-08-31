@@ -1,6 +1,7 @@
 import { FieldValue } from 'firebase-admin/firestore'
 import { db, functions } from '../lib/admin'
 import { getUsdToCdf } from '../payments/initiateDeposit'
+import { notifyPartnerInvoiceIssued } from '../partners/notifyPartnerInvoiceIssued'
 
 /**
  * Farmer picks a winning offer on their own listing. Creates the
@@ -73,10 +74,13 @@ export const selectHarvestOffer = functions
       return invoiceRef.id
     })
 
-    // TODO(SDP-04): when the partner-API offer path exists, notify the
-    // partner an invoice was issued here (notifyPartnerInvoiceIssued).
-    // Not called yet — offer.partnerId is always null until SDP-04 ships
-    // createExternalHarvestOffer, the only path that sets it.
+    // If the winning offer came in via the partner API, notify them an
+    // invoice now exists so they can decide whether to pay it via
+    // createExternalInvoiceCheckout. In-app merchants see it directly in
+    // their own app (SDP-07), no webhook needed.
+    if (offer.partnerId) {
+      await notifyPartnerInvoiceIssued(invoiceId)
+    }
 
     return { invoiceId }
   })
