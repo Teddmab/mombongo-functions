@@ -1,24 +1,15 @@
-import { admin, functions } from '../lib/admin'
+import { db, functions } from '../lib/admin'
+import { getUsdToCdf } from '../payments/initiateDeposit'
 
-const db = admin.firestore()
-
-const DEFAULT_RATE = 2800
-
+/**
+ * Reuses getUsdToCdf (config/exchange_rate.usdToCdf) — the same source
+ * every payment function reads. Previously read a separate, never-written
+ * doc (config/exchangeRate.rate), so the rate the frontend displayed could
+ * silently diverge from the rate actually used to charge a payment.
+ */
 export const getExchangeRate = functions
   .region('europe-west1')
   .https.onCall(async (_data, _context) => {
-    try {
-      const snap = await db.collection('config').doc('exchangeRate').get()
-      if (!snap.exists) {
-        return { rate: DEFAULT_RATE, updatedAt: new Date().toISOString() }
-      }
-      const data = snap.data()!
-      const ts = data.updatedAt
-      return {
-        rate: typeof data.rate === 'number' ? data.rate : DEFAULT_RATE,
-        updatedAt: ts?.toDate ? ts.toDate().toISOString() : new Date().toISOString(),
-      }
-    } catch {
-      return { rate: DEFAULT_RATE, updatedAt: new Date().toISOString() }
-    }
+    const rate = await getUsdToCdf(db)
+    return { rate, updatedAt: new Date().toISOString() }
   })
