@@ -1,5 +1,6 @@
 import * as crypto from 'crypto'
 import { admin, db, functions } from '../lib/admin'
+import { extractPawapayFee } from './pawapayFee'
 
 export const pawapayRefundWebhook = functions
   .runWith({ secrets: ['PAWAPAY_WEBHOOK_SECRET'] })
@@ -27,6 +28,7 @@ export const pawapayRefundWebhook = functions
 
     if (!refundId) { res.status(400).send('Missing refundId'); return }
 
+    const feeUsd = extractPawapayFee(req.body)
     const now = admin.firestore.FieldValue.serverTimestamp()
 
     // Look up the original deposit to find userId + amount
@@ -52,6 +54,7 @@ export const pawapayRefundWebhook = functions
           status: 'refunded',
           pawapayRefundId: refundId,
           pawapayDepositId: depositId,
+          feeUsd,
           createdAt: now,
         })
         tx.set(db.collection('refunds').doc(refundId), {

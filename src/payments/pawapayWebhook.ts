@@ -1,6 +1,7 @@
 import * as crypto from 'crypto'
 import { admin, db, functions } from '../lib/admin'
 import { markExternalInvoicePaid, markExternalInvoiceFailed } from '../partners/markExternalInvoicePaid'
+import { extractPawapayFee } from './pawapayFee'
 
 export const pawapayWebhook = functions
   .runWith({ secrets: ['PAWAPAY_WEBHOOK_SECRET'] })
@@ -22,6 +23,13 @@ export const pawapayWebhook = functions
 
     const { depositId, status } = req.body as { depositId: string; status: string }
     if (!depositId) { res.status(400).send('Missing depositId'); return }
+
+    // Best-effort — PawaPay's exact fee field name/path isn't confirmed
+    // anywhere in this codebase (no prior code ever read it), so this
+    // checks a couple of plausible shapes rather than assuming one. If
+    // none match, feeUsd stays null and the UI shows "non communiqué"
+    // rather than a fabricated number.
+    const feeUsd = extractPawapayFee(req.body)
 
     // SAI-02: PawaPay's webhook payload has no metadata, so an
     // external-invoice deposit (vs. a Mombongo user's own deposits/{id}
@@ -111,6 +119,7 @@ export const pawapayWebhook = functions
         currency: 'USD',
         status: 'completed',
         pawapayDepositId: depositId,
+        feeUsd,
         createdAt: now,
       })
     })
