@@ -91,12 +91,21 @@ describe('reviewKycSubmission', () => {
     const result = await call({ uid: 'farmer1', decision: 'verified' }, { auth: { uid: 'admin1' } })
     expect(result).toEqual({ success: true })
     expect(submissions['farmer1']).toMatchObject({ status: 'verified', reviewedBy: 'admin1', rejectionReason: null })
-    expect(users['farmer1']).toMatchObject({ kycStatus: 'verified' })
+    // users.kycStatus uses 'approved', not the admin decision's own 'verified' —
+    // that's the string every farmer-facing check (KycScreen, HomeScreen,
+    // useDashboardCTA, getMomBongoScore) actually reads.
+    expect(users['farmer1']).toMatchObject({ kycStatus: 'approved' })
   })
 
   it('rejects with a reason and stores it', async () => {
     await call({ uid: 'farmer1', decision: 'rejected', reason: 'Photo illisible' }, { auth: { uid: 'admin1' } })
     expect(submissions['farmer1']).toMatchObject({ status: 'rejected', rejectionReason: 'Photo illisible' })
     expect(users['farmer1']).toMatchObject({ kycStatus: 'rejected' })
+  })
+
+  it('maps a correction request to users.kycStatus "pending" — the rest of the platform has no fourth state', async () => {
+    await call({ uid: 'farmer1', decision: 'correction_requested', reason: 'Photo floue, veuillez la reprendre' }, { auth: { uid: 'admin1' } })
+    expect(submissions['farmer1']).toMatchObject({ status: 'correction_requested', rejectionReason: 'Photo floue, veuillez la reprendre' })
+    expect(users['farmer1']).toMatchObject({ kycStatus: 'pending' })
   })
 })

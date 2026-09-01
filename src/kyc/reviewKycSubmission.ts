@@ -4,6 +4,25 @@ const VALID_DECISIONS = ['verified', 'rejected', 'correction_requested'] as cons
 type Decision = typeof VALID_DECISIONS[number]
 
 /**
+ * users.kycStatus is read all over mombongo-web (KycScreen.tsx,
+ * HomeScreen.tsx, useDashboardCTA.ts) and by getMomBongoScore — every one
+ * of them checks for the string 'approved', not 'verified'. 'verified' was
+ * this admin decision's own vocabulary; without this mapping, an admin
+ * approving a submission would never actually register as KYC-complete
+ * anywhere else in the app. kyc_submissions.status keeps the admin's own
+ * three-value vocabulary (verified/rejected/correction_requested) since
+ * that collection isn't read by farmer-facing code. correction_requested
+ * maps to 'pending' on users.kycStatus — there is no fourth value in the
+ * rest of the platform's kycStatus checks, so this is the closest safe
+ * mapping (farmer still needs to resubmit) rather than inventing one.
+ */
+const USER_KYC_STATUS: Record<Decision, string> = {
+  verified: 'approved',
+  rejected: 'rejected',
+  correction_requested: 'pending',
+}
+
+/**
  * Admin-only KYC decision — the only server-validated way to approve,
  * reject, or request a correction on a farmer's/user's KYC submission.
  * Replaces the client-side `updateDoc` writes the admin console used
@@ -43,7 +62,7 @@ export const reviewKycSubmission = functions
         rejectionReason: decision === 'verified' ? null : reason!.trim(),
       })
       tx.update(userRef, {
-        kycStatus: decision,
+        kycStatus: USER_KYC_STATUS[decision],
         updatedAt: now,
       })
     })

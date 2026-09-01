@@ -354,6 +354,7 @@ export { getListingOffers, getMyHarvestOffers }       from './marketplace/getHar
 export { selectHarvestOffer }                        from './marketplace/selectHarvestOffer'
 export { payHarvestInvoice }                          from './marketplace/payHarvestInvoice'
 export { getMyHarvestInvoices }                       from './marketplace/getMyHarvestInvoices'
+export { adminCreateAssistedInvoice }                 from './marketplace/adminCreateAssistedInvoice'
 
 // ─── Financing ────────────────────────────────────────────────────────────────
 
