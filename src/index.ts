@@ -576,6 +576,8 @@ export { updateUserProfile }        from './profile/updateUserProfile'
 export { getKycUploadUrls }      from './kyc/getKycUploadUrls'
 export { submitKycDocuments }    from './kyc/submitKycDocuments'
 export { getMyKycSubmission }    from './kyc/getMyKycSubmission'
+export { reviewKycSubmission }   from './kyc/reviewKycSubmission'
+export { getKycDocumentViewUrl } from './kyc/getKycDocumentViewUrl'
 
 // ─── Farmer Home (SG-09) ─────────────────────────────────────────────────────
 
