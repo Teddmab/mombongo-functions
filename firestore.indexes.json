@@ -377,6 +377,31 @@
         { "fieldPath": "province",   "order": "ASCENDING" },
         { "fieldPath": "updatedAt",  "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "harvest_offers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "listingId",         "order": "ASCENDING" },
+        { "fieldPath": "offerPricePerKgCdf", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "harvest_offers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "merchantId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt",  "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "external_invoices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "merchantId", "order": "ASCENDING" },
+        { "fieldPath": "origin",     "order": "ASCENDING" },
+        { "fieldPath": "createdAt",  "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
