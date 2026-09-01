@@ -1,5 +1,6 @@
 import * as crypto from 'crypto'
 import { admin, db, functions } from '../lib/admin'
+import { extractPawapayFee } from './pawapayFee'
 
 export const pawapayPayoutWebhook = functions
   .runWith({ secrets: ['PAWAPAY_WEBHOOK_SECRET'] })
@@ -21,6 +22,8 @@ export const pawapayPayoutWebhook = functions
 
     const { payoutId, status } = req.body as { payoutId: string; status: string }
     if (!payoutId) { res.status(400).send('Missing payoutId'); return }
+
+    const feeUsd = extractPawapayFee(req.body)
 
     const withdrawRef = db.collection('withdrawals').doc(payoutId)
     const withdrawSnap = await withdrawRef.get()
@@ -44,6 +47,7 @@ export const pawapayPayoutWebhook = functions
           currency: 'USD',
           status: 'completed',
           pawapayPayoutId: payoutId,
+          feeUsd,
           createdAt: now,
         })
       })

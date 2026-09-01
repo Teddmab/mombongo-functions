@@ -356,6 +356,12 @@ export { payHarvestInvoice }                          from './marketplace/payHar
 export { getMyHarvestInvoices }                       from './marketplace/getMyHarvestInvoices'
 export { adminCreateAssistedInvoice }                 from './marketplace/adminCreateAssistedInvoice'
 
+// ─── Transaction reconciliation + support tickets ──────────────────────────────
+
+export { reconcileTransactions, runReconciliationCheck } from './reconciliation/reconcileTransactions'
+export { resolveReconciliationException }                from './reconciliation/resolveReconciliationException'
+export { createSupportTicket }                           from './support/createSupportTicket'
+
 // ─── Financing ────────────────────────────────────────────────────────────────
 
 export const getFarmers = functions
