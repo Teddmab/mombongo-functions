@@ -54,6 +54,17 @@ export const reviewKycSubmission = functions
       if (!submissionSnap.exists)
         throw new functions.https.HttpsError('not-found', 'No KYC submission for this user')
 
+      // A concurrent second admin reviewing the same dossier must not silently
+      // overwrite the first admin's terminal decision. 'pending' and
+      // 'correction_requested' stay open to a new decision (the normal flow —
+      // a correction request is revisited once the applicant resubmits).
+      const currentStatus = submissionSnap.data()?.status as Decision | 'pending' | undefined
+      if (currentStatus === 'verified' || currentStatus === 'rejected')
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'Ce dossier a déjà été traité par un autre administrateur.',
+        )
+
       const now = admin.firestore.FieldValue.serverTimestamp()
       tx.update(submissionRef, {
         status: decision,
