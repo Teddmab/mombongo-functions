@@ -3,12 +3,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const users: Record<string, Record<string, unknown> | undefined> = {}
 const listings: Record<string, Record<string, unknown> | undefined> = {}
 const idempotency: Record<string, Record<string, unknown> | undefined> = {}
+const partners: Record<string, Record<string, unknown> | undefined> = {}
 const invoices: Record<string, Record<string, unknown>> = {}
 const listingUpdates: { id: string; data: Record<string, unknown> }[] = []
 let invoiceCounter = 0
 
 vi.mock('../../payments/initiateDeposit', () => ({
   getUsdToCdf: vi.fn(async () => 2800),
+}))
+
+vi.mock('../../partners/notifyPartnerInvoiceIssued', () => ({
+  notifyPartnerInvoiceIssued: vi.fn(async () => {}),
 }))
 
 function makeDocRef(collectionName: string, id: string) {
@@ -33,6 +38,15 @@ vi.mock('../../lib/admin', () => ({
         }
         return makeDocRef(name, id!);
       },
+      where: (field: string, _op: string, value: unknown) => ({
+        limit: () => ({
+          get: async () => {
+            if (name !== 'partners') throw new Error(`unexpected where() on collection ${name}`);
+            const match = Object.entries(partners).find(([, p]) => p?.[field] === value);
+            return { empty: !match, docs: match ? [{ id: match[0], data: () => match[1] }] : [] };
+          },
+        }),
+      }),
     }),
     runTransaction: async (fn: (tx: unknown) => Promise<void>) => {
       const tx = {
@@ -62,6 +76,7 @@ vi.mock('../../lib/admin', () => ({
 }))
 
 import { adminCreateAssistedInvoice } from '../adminCreateAssistedInvoice'
+import { notifyPartnerInvoiceIssued } from '../../partners/notifyPartnerInvoiceIssued'
 
 type Handler = (data: unknown, context: { auth?: { uid: string } }) => Promise<{ invoiceId: string; amountUsd: number }>
 const call = adminCreateAssistedInvoice as unknown as Handler
@@ -90,9 +105,10 @@ const COOP_INPUT = {
 
 describe('adminCreateAssistedInvoice', () => {
   beforeEach(() => {
+    vi.mocked(notifyPartnerInvoiceIssued).mockClear();
     invoiceCounter = 0;
     listingUpdates.length = 0;
-    for (const store of [users, listings, idempotency]) for (const k of Object.keys(store)) delete store[k];
+    for (const store of [users, listings, idempotency, partners]) for (const k of Object.keys(store)) delete store[k];
     for (const k of Object.keys(invoices)) delete invoices[k];
 
     users['admin1'] = { role: 'admin' };
@@ -195,5 +211,18 @@ describe('adminCreateAssistedInvoice', () => {
     const second = await call(VALID_INPUT, { auth: { uid: 'admin1' } });
     expect(second).toEqual(first);
     expect(Object.keys(invoices).length).toBe(invoiceCountAfterFirst);
+  });
+
+  it('sets partnerId and notifies the partner when the chosen merchant is a provisioned partner\'s own account — otherwise it would be permanently unpayable', async () => {
+    partners['arom'] = { merchantUid: 'merchant1' };
+    const result = await call(VALID_INPUT, { auth: { uid: 'admin1' } });
+    expect(invoices[result.invoiceId]).toMatchObject({ partnerId: 'arom' });
+    expect(notifyPartnerInvoiceIssued).toHaveBeenCalledWith(result.invoiceId);
+  });
+
+  it('leaves partnerId null and never notifies a partner when the merchant is an ordinary account', async () => {
+    const result = await call(VALID_INPUT, { auth: { uid: 'admin1' } });
+    expect(invoices[result.invoiceId]).toMatchObject({ partnerId: null });
+    expect(notifyPartnerInvoiceIssued).not.toHaveBeenCalled();
   });
 });

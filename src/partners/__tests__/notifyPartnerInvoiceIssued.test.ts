@@ -2,14 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const invoiceUpdateMock = vi.fn()
 const invoices: Record<string, Record<string, unknown> | undefined> = {}
-const offers: Record<string, Record<string, unknown> | undefined> = {}
-const listings: Record<string, Record<string, unknown> | undefined> = {}
 const partners: Record<string, Record<string, unknown> | undefined> = {}
 
 vi.mock('../../lib/admin', () => ({
   db: {
     collection: (name: string) => {
-      const store = { external_invoices: invoices, harvest_offers: offers, product_listings: listings, partners }[name]
+      const store = { external_invoices: invoices, partners }[name]
       if (!store) throw new Error(`unexpected collection ${name}`)
       return {
         doc: (id: string) => ({
@@ -30,7 +28,7 @@ import { notifyPartnerInvoiceIssued } from '../notifyPartnerInvoiceIssued'
 describe('notifyPartnerInvoiceIssued', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    for (const s of [invoices, offers, listings, partners]) for (const k of Object.keys(s)) delete s[k]
+    for (const s of [invoices, partners]) for (const k of Object.keys(s)) delete s[k]
   })
 
   it('does nothing when the invoice does not exist', async () => {
@@ -39,22 +37,20 @@ describe('notifyPartnerInvoiceIssued', () => {
   })
 
   it('does nothing when the invoice has no partnerId', async () => {
-    invoices['inv1'] = { partnerId: null, farmerId: 'f1', listingId: 'l1', offerId: 'o1', amountUsd: 10 }
+    invoices['inv1'] = { partnerId: null, farmerId: 'f1', listingId: 'l1', amountUsd: 10, commodity: 'Manioc', quantityKg: 10 }
     await notifyPartnerInvoiceIssued('inv1')
     expect(sendMock).not.toHaveBeenCalled()
   })
 
   it('does nothing when the partner has no webhookUrl/outboundHmacSecret', async () => {
-    invoices['inv1'] = { partnerId: 'arom', farmerId: 'f1', listingId: 'l1', offerId: 'o1', amountUsd: 10 }
+    invoices['inv1'] = { partnerId: 'arom', farmerId: 'f1', listingId: 'l1', amountUsd: 10, commodity: 'Manioc', quantityKg: 10 }
     partners['arom'] = { name: 'AROM' }
     await notifyPartnerInvoiceIssued('inv1')
     expect(sendMock).not.toHaveBeenCalled()
   })
 
-  it('sends the invoice-issued payload with quantityKg/commodity from the offer and listing', async () => {
-    invoices['inv1'] = { partnerId: 'arom', farmerId: 'f1', listingId: 'l1', offerId: 'o1', amountUsd: 42 }
-    offers['o1'] = { offerQuantityKg: 25 }
-    listings['l1'] = { commodity: 'Manioc' }
+  it('sends the invoice-issued payload with quantityKg/commodity read directly from the invoice (harvest_sale: from the offer/listing at creation time; admin_assisted: entered by the admin)', async () => {
+    invoices['inv1'] = { partnerId: 'arom', farmerId: 'f1', listingId: 'l1', amountUsd: 42, quantityKg: 25, commodity: 'Manioc' }
     partners['arom'] = { webhookUrl: 'https://arom.cd/hook', outboundHmacSecret: 'secret' }
     await notifyPartnerInvoiceIssued('inv1')
     expect(sendMock).toHaveBeenCalledWith(
@@ -69,10 +65,19 @@ describe('notifyPartnerInvoiceIssued', () => {
     )
   })
 
+  it('works for an admin-assisted cooperative invoice with no listingId at all', async () => {
+    invoices['inv1'] = { partnerId: 'arom', farmerId: 'f1', listingId: null, amountUsd: 42, quantityKg: 100, commodity: 'Maïs' }
+    partners['arom'] = { webhookUrl: 'https://arom.cd/hook', outboundHmacSecret: 'secret' }
+    await notifyPartnerInvoiceIssued('inv1')
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({ listingId: null, quantityKg: 100, commodity: 'Maïs' }),
+      }),
+    )
+  })
+
   it('onSuccess updates invoiceIssuedNotifiedAt on the invoice', async () => {
-    invoices['inv1'] = { partnerId: 'arom', farmerId: 'f1', listingId: 'l1', offerId: 'o1', amountUsd: 42 }
-    offers['o1'] = { offerQuantityKg: 25 }
-    listings['l1'] = { commodity: 'Manioc' }
+    invoices['inv1'] = { partnerId: 'arom', farmerId: 'f1', listingId: 'l1', amountUsd: 42, quantityKg: 25, commodity: 'Manioc' }
     partners['arom'] = { webhookUrl: 'https://arom.cd/hook', outboundHmacSecret: 'secret' }
     await notifyPartnerInvoiceIssued('inv1')
     const { onSuccess } = sendMock.mock.calls[0][0]

@@ -42,11 +42,14 @@ export const selectHarvestOffer = functions
       const listingRef = db.collection('product_listings').doc(offer.listingId)
 
       // All reads first.
-      const othersSnap = await tx.get(
-        db.collection('harvest_offers')
-          .where('listingId', '==', offer.listingId)
-          .where('status', '==', 'pending'),
-      )
+      const [othersSnap, listingSnap] = await Promise.all([
+        tx.get(
+          db.collection('harvest_offers')
+            .where('listingId', '==', offer.listingId)
+            .where('status', '==', 'pending'),
+        ),
+        tx.get(listingRef),
+      ])
 
       // Then all writes.
       tx.set(invoiceRef, {
@@ -54,8 +57,19 @@ export const selectHarvestOffer = functions
         partnerId: offer.partnerId ?? null,
         merchantId: offer.merchantId,
         farmerId: offer.farmerId,
+        // Array form for getMyIssuedInvoices' array-contains query — a
+        // cooperative admin-assisted invoice can have several farmers, so
+        // farmerId alone (always just the first one there) isn't enough to
+        // find every invoice a given farmer actually appears on.
+        farmerIds: [offer.farmerId],
         listingId: offer.listingId,
         offerId,
+        // Snapshotted at creation time rather than joined later — an
+        // invoice should describe what was actually sold even if the
+        // listing itself changes or is deleted afterward. Also lets
+        // notifyPartnerInvoiceIssued read one doc instead of three.
+        commodity: (listingSnap.data()?.commodity as string) ?? null,
+        quantityKg: offer.offerQuantityKg,
         externalInvoiceId: invoiceRef.id,
         amountUsd,
         currency: 'USD',

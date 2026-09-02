@@ -354,6 +354,7 @@ export { getListingOffers, getMyHarvestOffers }       from './marketplace/getHar
 export { selectHarvestOffer }                        from './marketplace/selectHarvestOffer'
 export { payHarvestInvoice }                          from './marketplace/payHarvestInvoice'
 export { getMyHarvestInvoices }                       from './marketplace/getMyHarvestInvoices'
+export { getMyIssuedInvoices }                        from './marketplace/getMyIssuedInvoices'
 export { adminCreateAssistedInvoice }                 from './marketplace/adminCreateAssistedInvoice'
 export { adminCreatePerson }                          from './marketplace/adminCreatePerson'
 
@@ -697,6 +698,7 @@ export { getMomBongoScore }    from './farmer/getMomBongoScore'
 // ─── Status push notifications (SU-01-05) ────────────────────────────────────
 
 export { onListingFirstView, onAgentReportCreated } from './notifications/statusTriggers'
+export { onExternalInvoiceCreated } from './notifications/invoiceTriggers'
 
 // ─── Admin: Notification tools (SAN-01) ───────────────────────────────────────
 

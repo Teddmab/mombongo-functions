@@ -11,7 +11,7 @@ async function isStatusUpdateEnabled(uid: string): Promise<boolean> {
   return prefs.statusUpdates !== false
 }
 
-async function writeNotifAndPush(
+export async function writeNotifAndPush(
   eventKey: string,
   uid: string,
   type: string,

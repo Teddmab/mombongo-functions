@@ -7,19 +7,26 @@ interface InvoiceIssuedPayload {
                           // is no partner-originated externalInvoiceId for
                           // a harvest-sale invoice, this IS the id
   farmerId: string
-  listingId: string
+  listingId: string | null
   amountUsd: number
   quantityKg: number
   commodity: string
 }
 
 /**
- * Called directly from selectHarvestOffer (SDP-02) when the winning
- * offer's partnerId is set — NOT a Firestore trigger like
- * onExternalInvoicePaid, because "invoice created" is a one-time event at
- * creation, not a status transition to watch for. Same
+ * Called whenever an invoice is created with a partnerId set — from
+ * selectHarvestOffer (SDP-02) when the winning offer came in via the
+ * partner API, and from adminCreateAssistedInvoice when an admin picks a
+ * partner's own merchant account as the buyer. NOT a Firestore trigger
+ * like onExternalInvoicePaid, because "invoice created" is a one-time
+ * event at creation, not a status transition to watch for. Same
  * retry/backoff/dead-letter shape as notifyPartnerPaymentComplete, via
  * the shared sendSignedPartnerWebhook helper (SDP-04).
+ *
+ * Reads commodity/quantityKg straight off the invoice doc — both creation
+ * paths snapshot these at creation time now, so this no longer joins
+ * through harvest_offers/product_listings (which don't exist at all for
+ * an admin-assisted ad-hoc/cooperative sale).
  */
 export async function notifyPartnerInvoiceIssued(invoiceId: string): Promise<void> {
   const invoiceSnap = await db.collection('external_invoices').doc(invoiceId).get()
@@ -33,12 +40,7 @@ export async function notifyPartnerInvoiceIssued(invoiceId: string): Promise<voi
     return
   }
 
-  const [offerSnap, listingSnap, partnerSnap] = await Promise.all([
-    db.collection('harvest_offers').doc(invoice.offerId).get(),
-    db.collection('product_listings').doc(invoice.listingId).get(),
-    db.collection('partners').doc(invoice.partnerId).get(),
-  ])
-
+  const partnerSnap = await db.collection('partners').doc(invoice.partnerId).get()
   const webhookUrl = partnerSnap.data()?.webhookUrl as string | undefined
   const outboundSecret = partnerSnap.data()?.outboundHmacSecret as string | undefined
   if (!webhookUrl || !outboundSecret) {
@@ -49,10 +51,10 @@ export async function notifyPartnerInvoiceIssued(invoiceId: string): Promise<voi
   const payload: InvoiceIssuedPayload = {
     invoiceId,
     farmerId: invoice.farmerId,
-    listingId: invoice.listingId,
+    listingId: invoice.listingId ?? null,
     amountUsd: invoice.amountUsd,
-    quantityKg: offerSnap.data()?.offerQuantityKg ?? 0,
-    commodity: listingSnap.data()?.commodity ?? '',
+    quantityKg: invoice.quantityKg ?? 0,
+    commodity: invoice.commodity ?? '',
   }
 
   await sendSignedPartnerWebhook({
