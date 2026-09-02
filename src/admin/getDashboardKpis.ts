@@ -16,8 +16,14 @@ export interface DashboardKpisResult {
 export const getDashboardKpis = functions
   .region('europe-west1')
   .https.onCall(async (_data: unknown, context): Promise<DashboardKpisResult> => {
-    if (!context.auth) {
+    const callerUid = context.auth?.uid
+    if (!callerUid) {
       throw new functions.https.HttpsError('unauthenticated', 'Login required')
+    }
+
+    const callerSnap = await db.collection('users').doc(callerUid).get()
+    if (callerSnap.data()?.role !== 'admin') {
+      throw new functions.https.HttpsError('permission-denied', 'Admin only')
     }
 
     const startOfMonth = new Date()
