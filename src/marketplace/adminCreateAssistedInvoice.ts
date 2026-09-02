@@ -4,12 +4,19 @@ import { getUsdToCdf } from '../payments/initiateDeposit'
 const CONSENT_METHODS = ['phone', 'in_person', 'field_agent'] as const
 type ConsentMethod = typeof CONSENT_METHODS[number]
 
+interface FarmerContribution {
+  farmerId: string
+  contributedKg: number
+}
+
 interface AssistedInvoiceInput {
   clientRequestId: string
-  farmerId: string
+  farmers: FarmerContribution[]
   merchantId: string
-  listingId: string
-  quantityKg: number
+  /** Only valid when farmers.length === 1 — a listing belongs to exactly one seller. Omit for a cooperative, or for a single farmer whose harvest was never published as a listing; commodity/pricePerKgCdf are required in that case instead. */
+  listingId?: string | null
+  commodity?: string
+  pricePerKgCdf?: number
   consentMethod: ConsentMethod
   consentAt: string // ISO — when the admin actually obtained consent, which may be before the request is submitted
   note?: string
@@ -17,24 +24,27 @@ interface AssistedInvoiceInput {
 
 /**
  * ADM-UI-04's "Créer une facture avec assistance" — an admin creates a
- * real, payable harvest-sale invoice on a farmer's behalf. This is
- * genuinely new financial-transaction-creation power, not a UI reskin, so
- * every check below is load-bearing:
+ * real, payable harvest-sale invoice on behalf of one farmer, or several
+ * pooling a harvest together as a cooperative. This is genuinely new
+ * financial-transaction-creation power, not a UI reskin, so every check
+ * below is load-bearing:
  *
- * - The farmer remains the invoice's issuer (farmerId on the doc, exactly
- *   like a self-service harvest-sale invoice) — the admin is never the
- *   payer or the seller of record, only recorded as the assisting actor.
- * - Farmer KYC and merchant verification are enforced server-side and
- *   cannot be bypassed by the client (no flag skips these checks).
- * - The total is computed server-side from the listing's own price ×
- *   quantity — the client never supplies (and this function never trusts)
- *   a final amount.
+ * - Every farmer named stays a real issuer on the invoice (farmers[] on
+ *   the doc) — the admin is never the payer or seller of record, only
+ *   recorded as the assisting actor.
+ * - Every farmer's and the merchant's KYC/role are enforced server-side
+ *   and cannot be bypassed by the client (no flag skips these checks) —
+ *   including farmers/merchants the admin just created inline via
+ *   adminCreatePerson, which are real users with real (admin-attested)
+ *   kycStatus, not a special-cased shortcut here.
+ * - The total is computed server-side — from the listing's own price ×
+ *   quantity in listing mode, or from the admin-entered price × the sum
+ *   of contributions in cooperative/ad-hoc mode — the client never
+ *   supplies (and this function never trusts) a final amount.
  * - origin: 'admin_assisted' is a new, third value alongside SDP's
- *   'partner_api'/'harvest_sale' — never written as anything indistinguishable
- *   from farmer self-service.
- * - clientRequestId makes final submission idempotent: a retried call
- *   with the same id returns the original result instead of creating a
- *   second invoice or closing the listing twice.
+ *   'partner_api'/'harvest_sale' — never written as anything
+ *   indistinguishable from farmer self-service.
+ * - clientRequestId makes final submission idempotent.
  *
  * Once created, the invoice is paid through the existing payHarvestInvoice
  * (SDP-03) — no new payment/checkout path needed, since that function
@@ -51,15 +61,20 @@ export const adminCreateAssistedInvoice = functions
       throw new functions.https.HttpsError('permission-denied', 'Admin only')
 
     const {
-      clientRequestId, farmerId, merchantId, listingId, quantityKg,
+      clientRequestId, farmers, merchantId, listingId, commodity, pricePerKgCdf: adHocPricePerKgCdf,
       consentMethod, consentAt, note,
     } = (data ?? {}) as Partial<AssistedInvoiceInput>
 
     if (!clientRequestId) throw new functions.https.HttpsError('invalid-argument', 'clientRequestId required')
-    if (!farmerId || !merchantId || !listingId)
-      throw new functions.https.HttpsError('invalid-argument', 'farmerId, merchantId and listingId required')
-    if (!quantityKg || quantityKg <= 0)
-      throw new functions.https.HttpsError('invalid-argument', 'quantityKg must be > 0')
+    if (!Array.isArray(farmers) || farmers.length === 0)
+      throw new functions.https.HttpsError('invalid-argument', 'At least one farmer required')
+    if (farmers.some((f) => !f.farmerId || !f.contributedKg || f.contributedKg <= 0))
+      throw new functions.https.HttpsError('invalid-argument', 'Each farmer needs a farmerId and a contributedKg > 0')
+    if (new Set(farmers.map((f) => f.farmerId)).size !== farmers.length)
+      throw new functions.https.HttpsError('invalid-argument', 'Duplicate farmer in the list')
+    if (!merchantId) throw new functions.https.HttpsError('invalid-argument', 'merchantId required')
+    if (listingId && farmers.length > 1)
+      throw new functions.https.HttpsError('invalid-argument', 'A listing belongs to a single farmer — omit listingId for a cooperative')
     if (!consentMethod || !CONSENT_METHODS.includes(consentMethod))
       throw new functions.https.HttpsError('invalid-argument', `consentMethod must be one of ${CONSENT_METHODS.join(', ')}`)
     if (!consentAt) throw new functions.https.HttpsError('invalid-argument', 'consentAt required')
@@ -71,17 +86,18 @@ export const adminCreateAssistedInvoice = functions
       return { invoiceId: prior.invoiceId as string, amountUsd: prior.amountUsd as number }
     }
 
-    const [farmerSnap, merchantSnap, listingSnap] = await Promise.all([
-      db.collection('users').doc(farmerId).get(),
+    const [farmerSnaps, merchantSnap] = await Promise.all([
+      Promise.all(farmers.map((f) => db.collection('users').doc(f.farmerId).get())),
       db.collection('users').doc(merchantId).get(),
-      db.collection('product_listings').doc(listingId).get(),
     ])
 
-    const farmer = farmerSnap.data()
-    if (!farmerSnap.exists || farmer?.role !== 'farmer')
-      throw new functions.https.HttpsError('failed-precondition', 'Agriculteur introuvable')
-    if (farmer?.kycStatus !== 'approved')
-      throw new functions.https.HttpsError('failed-precondition', "L'agriculteur doit avoir un KYC approuvé")
+    for (let i = 0; i < farmers.length; i++) {
+      const farmer = farmerSnaps[i].data()
+      if (!farmerSnaps[i].exists || farmer?.role !== 'farmer')
+        throw new functions.https.HttpsError('failed-precondition', `Agriculteur introuvable (${farmers[i].farmerId})`)
+      if (farmer?.kycStatus !== 'approved')
+        throw new functions.https.HttpsError('failed-precondition', `L'agriculteur ${farmer?.fullName ?? farmers[i].farmerId} doit avoir un KYC approuvé`)
+    }
 
     const merchant = merchantSnap.data()
     if (!merchantSnap.exists || merchant?.role !== 'merchant')
@@ -89,17 +105,38 @@ export const adminCreateAssistedInvoice = functions
     if (merchant?.kycStatus !== 'approved')
       throw new functions.https.HttpsError('failed-precondition', 'Le commerçant doit avoir un KYC approuvé')
 
-    const listing = listingSnap.data()
-    if (!listingSnap.exists || listing?.sellerId !== farmerId)
-      throw new functions.https.HttpsError('failed-precondition', "L'annonce ne correspond pas à cet agriculteur")
-    if (listing?.status !== 'active')
-      throw new functions.https.HttpsError('failed-precondition', "Cette annonce n'est plus disponible")
-    if (quantityKg > (listing.quantityKg as number))
-      throw new functions.https.HttpsError('invalid-argument', 'Quantité supérieure à la quantité disponible')
+    const totalKg = farmers.reduce((sum, f) => sum + f.contributedKg, 0)
 
-    const pricePerKgCdf = listing.pricePerKgCdf as number
+    let listingSnap: FirebaseFirestore.DocumentSnapshot | null = null
+    let pricePerKgCdf: number
+    let resolvedCommodity: string | null
+
+    if (listingId) {
+      // Listing mode — single farmer only (enforced above), reuses the
+      // farmer's own published listing and its price, exactly as before.
+      listingSnap = await db.collection('product_listings').doc(listingId).get()
+      const listing = listingSnap.data()
+      if (!listingSnap.exists || listing?.sellerId !== farmers[0].farmerId)
+        throw new functions.https.HttpsError('failed-precondition', "L'annonce ne correspond pas à cet agriculteur")
+      if (listing?.status !== 'active')
+        throw new functions.https.HttpsError('failed-precondition', "Cette annonce n'est plus disponible")
+      if (totalKg > (listing.quantityKg as number))
+        throw new functions.https.HttpsError('invalid-argument', 'Quantité supérieure à la quantité disponible')
+      pricePerKgCdf = listing.pricePerKgCdf as number
+      resolvedCommodity = (listing.commodity as string) ?? null
+    } else {
+      // Cooperative / ad-hoc mode — no listing to anchor to (a pooled
+      // harvest across several farmers was never published as one), so
+      // commodity and price come directly from the admin.
+      if (!commodity?.trim()) throw new functions.https.HttpsError('invalid-argument', 'commodity required when no listing is selected')
+      if (!adHocPricePerKgCdf || adHocPricePerKgCdf <= 0)
+        throw new functions.https.HttpsError('invalid-argument', 'pricePerKgCdf must be > 0 when no listing is selected')
+      pricePerKgCdf = adHocPricePerKgCdf
+      resolvedCommodity = commodity.trim()
+    }
+
     const usdToCdf = await getUsdToCdf(db)
-    const amountUsd = Math.round(((pricePerKgCdf * quantityKg) / usdToCdf) * 100) / 100
+    const amountUsd = Math.round(((pricePerKgCdf * totalKg) / usdToCdf) * 100) / 100
 
     const invoiceRef = db.collection('external_invoices').doc()
     const now = admin.firestore.FieldValue.serverTimestamp()
@@ -109,11 +146,17 @@ export const adminCreateAssistedInvoice = functions
         externalInvoiceId: invoiceRef.id,
         origin: 'admin_assisted',
         partnerId: null,
-        farmerId,
+        // farmerId kept for backward compatibility with code that reads a
+        // single issuer (e.g. name-resolution joins) — always the first
+        // farmer. farmers[] is the source of truth for who actually issued.
+        farmerId: farmers[0].farmerId,
+        farmers,
+        isCooperative: farmers.length > 1,
         merchantId,
-        listingId,
+        listingId: listingId ?? null,
+        commodity: resolvedCommodity,
         offerId: null,
-        quantityKg,
+        quantityKg: totalKg,
         pricePerKgCdf,
         amountUsd,
         currency: 'USD',
@@ -130,13 +173,12 @@ export const adminCreateAssistedInvoice = functions
       })
       // Mirrors selectHarvestOffer's convention (SDP-00 open question 3,
       // resolved as "accepting one offer closes the listing entirely") —
-      // no partial-fulfillment support exists yet, so this invoice also
-      // closes the listing fully rather than leaving a partially-sold,
-      // still-active listing other merchants could offer against.
-      tx.update(listingSnap.ref, { status: 'sold' })
+      // no partial-fulfillment support exists yet. Only applies in listing
+      // mode; a cooperative/ad-hoc invoice never touches product_listings.
+      if (listingSnap) tx.update(listingSnap.ref, { status: 'sold' })
       tx.set(idempotencyRef, { invoiceId: invoiceRef.id, amountUsd, createdAt: now })
     })
 
-    functions.logger.info(`adminCreateAssistedInvoice: ${adminUid} created ${invoiceRef.id} for farmer ${farmerId} / merchant ${merchantId}`)
+    functions.logger.info(`adminCreateAssistedInvoice: ${adminUid} created ${invoiceRef.id} for ${farmers.length} farmer(s) / merchant ${merchantId}`)
     return { invoiceId: invoiceRef.id, amountUsd }
   })

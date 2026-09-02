@@ -355,6 +355,7 @@ export { selectHarvestOffer }                        from './marketplace/selectH
 export { payHarvestInvoice }                          from './marketplace/payHarvestInvoice'
 export { getMyHarvestInvoices }                       from './marketplace/getMyHarvestInvoices'
 export { adminCreateAssistedInvoice }                 from './marketplace/adminCreateAssistedInvoice'
+export { adminCreatePerson }                          from './marketplace/adminCreatePerson'
 
 // ─── Transaction reconciliation + support tickets ──────────────────────────────
 
