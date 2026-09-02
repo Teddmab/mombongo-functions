@@ -68,11 +68,23 @@ const call = adminCreateAssistedInvoice as unknown as Handler
 
 const VALID_INPUT = {
   clientRequestId: 'req1',
-  farmerId: 'farmer1',
+  farmers: [{ farmerId: 'farmer1', contributedKg: 100 }],
   merchantId: 'merchant1',
   listingId: 'listing1',
-  quantityKg: 100,
   consentMethod: 'phone' as const,
+  consentAt: '2026-09-01T10:00:00.000Z',
+};
+
+const COOP_INPUT = {
+  clientRequestId: 'req-coop',
+  farmers: [
+    { farmerId: 'farmer1', contributedKg: 60 },
+    { farmerId: 'farmer2', contributedKg: 40 },
+  ],
+  merchantId: 'merchant1',
+  commodity: 'Maïs',
+  pricePerKgCdf: 2800,
+  consentMethod: 'field_agent' as const,
   consentAt: '2026-09-01T10:00:00.000Z',
 };
 
@@ -85,6 +97,7 @@ describe('adminCreateAssistedInvoice', () => {
 
     users['admin1'] = { role: 'admin' };
     users['farmer1'] = { role: 'farmer', kycStatus: 'approved' };
+    users['farmer2'] = { role: 'farmer', kycStatus: 'approved' };
     users['merchant1'] = { role: 'merchant', kycStatus: 'approved' };
     listings['listing1'] = { sellerId: 'farmer1', status: 'active', quantityKg: 500, pricePerKgCdf: 2800 };
   });
@@ -115,7 +128,43 @@ describe('adminCreateAssistedInvoice', () => {
   });
 
   it('rejects a quantity greater than what the listing has available', async () => {
-    await expect(call({ ...VALID_INPUT, quantityKg: 1000 }, { auth: { uid: 'admin1' } })).rejects.toThrow('Quantité supérieure');
+    await expect(call({ ...VALID_INPUT, farmers: [{ farmerId: 'farmer1', contributedKg: 1000 }] }, { auth: { uid: 'admin1' } })).rejects.toThrow('Quantité supérieure');
+  });
+
+  it('rejects a listingId combined with more than one farmer', async () => {
+    await expect(call({ ...VALID_INPUT, farmers: COOP_INPUT.farmers }, { auth: { uid: 'admin1' } })).rejects.toThrow('single farmer');
+  });
+
+  it('rejects a duplicate farmer in the list', async () => {
+    await expect(call({
+      ...COOP_INPUT, listingId: undefined,
+      farmers: [{ farmerId: 'farmer1', contributedKg: 10 }, { farmerId: 'farmer1', contributedKg: 20 }],
+    }, { auth: { uid: 'admin1' } })).rejects.toThrow('Duplicate farmer');
+  });
+
+  it('rejects cooperative/ad-hoc mode without a commodity', async () => {
+    await expect(call({ ...COOP_INPUT, commodity: undefined }, { auth: { uid: 'admin1' } })).rejects.toThrow('commodity required');
+  });
+
+  it('rejects cooperative/ad-hoc mode without a price', async () => {
+    await expect(call({ ...COOP_INPUT, pricePerKgCdf: undefined }, { auth: { uid: 'admin1' } })).rejects.toThrow('pricePerKgCdf must be > 0');
+  });
+
+  it('creates a cooperative invoice from several farmers pooling a harvest, computing total from admin-entered price', async () => {
+    const result = await call(COOP_INPUT, { auth: { uid: 'admin1' } });
+    // (60+40)kg * 2800 CDF/kg = 280,000 CDF / 2800 (rate) = 100 USD
+    expect(result.amountUsd).toBe(100);
+    expect(invoices[result.invoiceId]).toMatchObject({
+      origin: 'admin_assisted', farmerId: 'farmer1', isCooperative: true,
+      farmers: COOP_INPUT.farmers, quantityKg: 100, commodity: 'Maïs', listingId: null,
+    });
+    // Cooperative/ad-hoc invoices never touch product_listings
+    expect(listingUpdates).toEqual([]);
+  });
+
+  it('rejects a farmer in the cooperative without approved KYC', async () => {
+    users['farmer2'] = { role: 'farmer', kycStatus: 'pending' };
+    await expect(call(COOP_INPUT, { auth: { uid: 'admin1' } })).rejects.toThrow('KYC approuvé');
   });
 
   it('computes amountUsd server-side from the listing price, never trusting a client-supplied total', async () => {
