@@ -1,0 +1,13 @@
+[
+  {
+    "origin": [
+      "https://mombongo-web.pages.dev",
+      "https://mombongo-admin.pages.dev",
+      "http://localhost:5173",
+      "http://localhost:4173"
+    ],
+    "method": ["PUT", "GET", "OPTIONS"],
+    "responseHeader": ["Content-Type"],
+    "maxAgeSeconds": 3600
+  }
+]

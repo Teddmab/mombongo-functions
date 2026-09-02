@@ -35,7 +35,11 @@ export const getDashboardKpis = functions
       investSnap,
     ] = await Promise.all([
       db.collection('users').where('disabled', '!=', true).count().get(),
-      db.collection('users').where('kycStatus', '==', 'pending').count().get(),
+      // Real submitted dossiers actually awaiting a decision (kyc_submissions),
+      // not users.kycStatus === 'pending' — that field also covers everyone who
+      // simply hasn't started KYC yet, so it overcounted vs. what
+      // reviewKycSubmission's queue (AdminKyc) can actually show an admin.
+      db.collection('kyc_submissions').where('status', '==', 'pending').count().get(),
       db.collection('financing_applications').where('status', '==', 'active').count().get(),
       db.collection('bourse_opportunities').where('status', '==', 'open').count().get(),
       db.collection('transactions').where('createdAt', '>=', startTs).get(),

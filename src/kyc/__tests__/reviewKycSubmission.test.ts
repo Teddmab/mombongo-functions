@@ -108,4 +108,26 @@ describe('reviewKycSubmission', () => {
     expect(submissions['farmer1']).toMatchObject({ status: 'correction_requested', rejectionReason: 'Photo floue, veuillez la reprendre' })
     expect(users['farmer1']).toMatchObject({ kycStatus: 'pending' })
   })
+
+  it('refuses to overwrite an already-approved dossier (concurrent second admin)', async () => {
+    submissions['farmer1'] = { ...submissions['farmer1'], status: 'verified' }
+    await expect(
+      call({ uid: 'farmer1', decision: 'rejected', reason: 'Trop tard' }, { auth: { uid: 'admin1' } }),
+    ).rejects.toThrow('déjà été traité')
+    // the terminal decision is untouched
+    expect(submissions['farmer1']).toMatchObject({ status: 'verified' })
+  })
+
+  it('refuses to overwrite an already-rejected dossier', async () => {
+    submissions['farmer1'] = { ...submissions['farmer1'], status: 'rejected' }
+    await expect(
+      call({ uid: 'farmer1', decision: 'verified' }, { auth: { uid: 'admin1' } }),
+    ).rejects.toThrow('déjà été traité')
+  })
+
+  it('still allows a decision on a correction_requested dossier — that state stays open until resubmission', async () => {
+    submissions['farmer1'] = { ...submissions['farmer1'], status: 'correction_requested' }
+    await call({ uid: 'farmer1', decision: 'verified' }, { auth: { uid: 'admin1' } })
+    expect(submissions['farmer1']).toMatchObject({ status: 'verified' })
+  })
 })
