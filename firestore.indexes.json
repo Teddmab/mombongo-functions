@@ -473,6 +473,14 @@
       ]
     },
     {
+      "collectionGroup": "external_invoices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "farmerIds", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "did_you_know",
       "queryScope": "COLLECTION",
       "fields": [

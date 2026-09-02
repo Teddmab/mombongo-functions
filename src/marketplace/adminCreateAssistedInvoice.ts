@@ -1,5 +1,6 @@
 import { admin, db, functions } from '../lib/admin'
 import { getUsdToCdf } from '../payments/initiateDeposit'
+import { notifyPartnerInvoiceIssued } from '../partners/notifyPartnerInvoiceIssued'
 
 const CONSENT_METHODS = ['phone', 'in_person', 'field_agent'] as const
 type ConsentMethod = typeof CONSENT_METHODS[number]
@@ -46,9 +47,13 @@ interface AssistedInvoiceInput {
  *   indistinguishable from farmer self-service.
  * - clientRequestId makes final submission idempotent.
  *
- * Once created, the invoice is paid through the existing payHarvestInvoice
- * (SDP-03) — no new payment/checkout path needed, since that function
- * only checks invoice.merchantId === context.auth.uid, not origin.
+ * Payment path depends on who the merchant actually is, not on origin:
+ * a real, logged-in merchant pays through the existing payHarvestInvoice
+ * (SDP-03) unchanged. If the merchant is a partner's own synthetic
+ * merchant account (partnerId resolved below), the partner pays through
+ * their existing createExternalInvoiceCheckout instead — the same path a
+ * partner_api-origin invoice already uses — since a login-less synthetic
+ * account can never authenticate to call payHarvestInvoice itself.
  */
 export const adminCreateAssistedInvoice = functions
   .region('europe-west1')
@@ -105,6 +110,18 @@ export const adminCreateAssistedInvoice = functions
     if (merchant?.kycStatus !== 'approved')
       throw new functions.https.HttpsError('failed-precondition', 'Le commerçant doit avoir un KYC approuvé')
 
+    // If the chosen merchant IS a provisioned partner's own synthetic
+    // account (e.g. AROM), this invoice needs to behave like a partner_api
+    // invoice for payment purposes — a login-less synthetic merchant can
+    // never call payHarvestInvoice itself, so without partnerId set here
+    // the invoice would be permanently unpayable: neither
+    // createExternalInvoiceCheckout (needs invoice.partnerId to match) nor
+    // payHarvestInvoice (needs a real authenticated session) would ever
+    // accept it. origin stays 'admin_assisted' — that's provenance (who
+    // created it); partnerId is what actually drives payment/notification.
+    const partnerForMerchantSnap = await db.collection('partners').where('merchantUid', '==', merchantId).limit(1).get()
+    const partnerId = partnerForMerchantSnap.empty ? null : partnerForMerchantSnap.docs[0].id
+
     const totalKg = farmers.reduce((sum, f) => sum + f.contributedKg, 0)
 
     let listingSnap: FirebaseFirestore.DocumentSnapshot | null = null
@@ -145,11 +162,15 @@ export const adminCreateAssistedInvoice = functions
       tx.set(invoiceRef, {
         externalInvoiceId: invoiceRef.id,
         origin: 'admin_assisted',
-        partnerId: null,
+        partnerId,
         // farmerId kept for backward compatibility with code that reads a
         // single issuer (e.g. name-resolution joins) — always the first
         // farmer. farmers[] is the source of truth for who actually issued.
         farmerId: farmers[0].farmerId,
+        // Every issuer, not just the first — see getMyIssuedInvoices, which
+        // uses array-contains against this to find a cooperative farmer's
+        // invoices even when they aren't farmers[0].
+        farmerIds: farmers.map((f) => f.farmerId),
         farmers,
         isCooperative: farmers.length > 1,
         merchantId,
@@ -180,5 +201,8 @@ export const adminCreateAssistedInvoice = functions
     })
 
     functions.logger.info(`adminCreateAssistedInvoice: ${adminUid} created ${invoiceRef.id} for ${farmers.length} farmer(s) / merchant ${merchantId}`)
+
+    if (partnerId) await notifyPartnerInvoiceIssued(invoiceRef.id)
+
     return { invoiceId: invoiceRef.id, amountUsd }
   })
