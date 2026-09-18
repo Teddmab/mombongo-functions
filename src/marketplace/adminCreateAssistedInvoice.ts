@@ -121,6 +121,10 @@ export const adminCreateAssistedInvoice = functions
     // created it); partnerId is what actually drives payment/notification.
     const partnerForMerchantSnap = await db.collection('partners').where('merchantUid', '==', merchantId).limit(1).get()
     const partnerId = partnerForMerchantSnap.empty ? null : partnerForMerchantSnap.docs[0].id
+    // Mirrors selectHarvestOffer.ts — a QA/sandbox partner's invoice must
+    // be testMode too, or its checkout would silently hit production
+    // PawaPay once sandbox routing exists.
+    const partnerTestMode = partnerForMerchantSnap.empty ? false : !!partnerForMerchantSnap.docs[0].data().testMode
 
     const totalKg = farmers.reduce((sum, f) => sum + f.contributedKg, 0)
 
@@ -182,7 +186,7 @@ export const adminCreateAssistedInvoice = functions
         amountUsd,
         currency: 'USD',
         status: 'pending',
-        testMode: false,
+        testMode: partnerTestMode,
         reference: note ?? null,
         adminAssisted: {
           actorUid: adminUid,

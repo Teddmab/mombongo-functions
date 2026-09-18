@@ -7,10 +7,14 @@ vi.mock('../../lib/admin', () => ({
   functions: { logger: { error: vi.fn() } },
 }))
 
-const { initiateMobileMoneyMock } = vi.hoisted(() => ({
-  initiateMobileMoneyMock: vi.fn(),
+const { initiateMobileMoneyMock, PawapaySandboxNotConfiguredError } = vi.hoisted(() => {
+  class PawapaySandboxNotConfiguredError extends Error {}
+  return { initiateMobileMoneyMock: vi.fn(), PawapaySandboxNotConfiguredError }
+})
+vi.mock('../initiateExternalInvoiceMobileMoney', () => ({
+  initiateExternalInvoiceMobileMoney: initiateMobileMoneyMock,
+  PawapaySandboxNotConfiguredError,
 }))
-vi.mock('../initiateExternalInvoiceMobileMoney', () => ({ initiateExternalInvoiceMobileMoney: initiateMobileMoneyMock }))
 
 import { createCheckoutForInvoiceCore } from '../createCheckoutForInvoiceCore'
 
@@ -20,7 +24,7 @@ describe('createCheckoutForInvoiceCore', () => {
   it('creates a mobile_money checkout when phone/operator are present, and writes merchantUid + status onto the invoice', async () => {
     initiateMobileMoneyMock.mockResolvedValueOnce({ depositId: 'dep1', status: 'ACCEPTED' })
     const result = await createCheckoutForInvoiceCore({
-      invoiceRef, invoiceId: 'inv1', amountUsd: 50, merchantUid: 'm1', partnerId: null,
+      invoiceRef, invoiceId: 'inv1', amountUsd: 50, merchantUid: 'm1', partnerId: null, testMode: false,
       method: 'mobile_money', phone: '+243900000000', operator: 'mpesa',
     })
     expect(result).toEqual({ ok: true, providerRef: 'dep1', responseBody: { depositStatus: 'ACCEPTED' } })
@@ -31,7 +35,7 @@ describe('createCheckoutForInvoiceCore', () => {
 
   it('rejects mobile_money without phone/operator, without calling the provider', async () => {
     const result = await createCheckoutForInvoiceCore({
-      invoiceRef, invoiceId: 'inv1', amountUsd: 50, merchantUid: 'm1', partnerId: null, method: 'mobile_money',
+      invoiceRef, invoiceId: 'inv1', amountUsd: 50, merchantUid: 'm1', partnerId: null, testMode: false, method: 'mobile_money',
     })
     expect(result).toEqual({ ok: false, kind: 'missing_phone_operator' })
     expect(initiateMobileMoneyMock).not.toHaveBeenCalled()
@@ -40,7 +44,7 @@ describe('createCheckoutForInvoiceCore', () => {
 
   it('rejects bank_transfer as not yet implemented', async () => {
     const result = await createCheckoutForInvoiceCore({
-      invoiceRef, invoiceId: 'inv1', amountUsd: 50, merchantUid: 'm1', partnerId: null, method: 'bank_transfer',
+      invoiceRef, invoiceId: 'inv1', amountUsd: 50, merchantUid: 'm1', partnerId: null, testMode: false, method: 'bank_transfer',
     })
     expect(result).toEqual({ ok: false, kind: 'bank_transfer_unimplemented' })
   })
@@ -48,10 +52,20 @@ describe('createCheckoutForInvoiceCore', () => {
   it('surfaces a provider error without writing to the invoice', async () => {
     initiateMobileMoneyMock.mockRejectedValueOnce(new Error('PawaPay down'))
     const result = await createCheckoutForInvoiceCore({
-      invoiceRef, invoiceId: 'inv1', amountUsd: 50, merchantUid: 'm1', partnerId: null,
+      invoiceRef, invoiceId: 'inv1', amountUsd: 50, merchantUid: 'm1', partnerId: null, testMode: false,
       method: 'mobile_money', phone: '+243900000000', operator: 'mpesa',
     })
     expect(result).toEqual({ ok: false, kind: 'provider_error', message: 'PawaPay down' })
+    expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it('surfaces sandbox_not_configured distinctly from a generic provider error, without writing to the invoice', async () => {
+    initiateMobileMoneyMock.mockRejectedValueOnce(new PawapaySandboxNotConfiguredError('sandbox missing'))
+    const result = await createCheckoutForInvoiceCore({
+      invoiceRef, invoiceId: 'inv1', amountUsd: 50, merchantUid: 'm1', partnerId: null, testMode: true,
+      method: 'mobile_money', phone: '+243900000000', operator: 'mpesa',
+    })
+    expect(result).toEqual({ ok: false, kind: 'sandbox_not_configured' })
     expect(updateMock).not.toHaveBeenCalled()
   })
 })

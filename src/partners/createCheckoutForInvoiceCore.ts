@@ -1,6 +1,6 @@
 import { FieldValue } from 'firebase-admin/firestore'
 import { functions } from '../lib/admin'
-import { initiateExternalInvoiceMobileMoney } from './initiateExternalInvoiceMobileMoney'
+import { initiateExternalInvoiceMobileMoney, PawapaySandboxNotConfiguredError } from './initiateExternalInvoiceMobileMoney'
 
 /**
  * Shared by createExternalInvoiceCheckout.ts (partner-signed, SAI-02) and
@@ -24,6 +24,7 @@ export interface CreateCheckoutInput {
   amountUsd: number
   merchantUid: string
   partnerId: string | null
+  testMode: boolean
   method: 'mobile_money' | 'bank_transfer'
   phone?: string
   operator?: string
@@ -33,6 +34,7 @@ export type CreateCheckoutResult =
   | { ok: true; providerRef: string; responseBody: Record<string, unknown> }
   | { ok: false; kind: 'missing_phone_operator' }
   | { ok: false; kind: 'bank_transfer_unimplemented' }
+  | { ok: false; kind: 'sandbox_not_configured' }
   | { ok: false; kind: 'provider_error'; message: string }
 
 export async function createCheckoutForInvoiceCore(input: CreateCheckoutInput): Promise<CreateCheckoutResult> {
@@ -51,6 +53,7 @@ export async function createCheckoutForInvoiceCore(input: CreateCheckoutInput): 
         amountUsd: input.amountUsd,
         phone: input.phone,
         operator: input.operator,
+        testMode: input.testMode,
       })
       responseBody = { depositStatus: deposit.status }
       providerRef = deposit.depositId
@@ -59,6 +62,9 @@ export async function createCheckoutForInvoiceCore(input: CreateCheckoutInput): 
       return { ok: false, kind: 'bank_transfer_unimplemented' }
     }
   } catch (err) {
+    if (err instanceof PawapaySandboxNotConfiguredError) {
+      return { ok: false, kind: 'sandbox_not_configured' }
+    }
     functions.logger.error('createCheckoutForInvoiceCore: provider call failed', err)
     return { ok: false, kind: 'provider_error', message: err instanceof Error ? err.message : 'Provider error' }
   }
