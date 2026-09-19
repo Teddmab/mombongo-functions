@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 
+let nextOfferId = 0
+
 vi.mock('../../lib/admin', () => {
   const listings: Record<string, Record<string, unknown> | undefined> = {
     'listing-active': { status: 'active', sellerId: 'farmer-1', quantityKg: 100 },
@@ -21,9 +23,12 @@ vi.mock('../../lib/admin', () => {
         }
         if (name === 'harvest_offers') {
           return {
-            add: async (data: unknown) => {
-              added.push(data)
-              return { id: `offer-${added.length}` }
+            doc: () => {
+              const id = `offer-${++nextOfferId}`
+              return {
+                id,
+                set: async (data: unknown) => { added.push(data) },
+              }
             },
           }
         }
@@ -53,7 +58,7 @@ describe('createHarvestOfferCore', () => {
     expect(offerId).toBeTruthy()
   })
 
-  it('copies farmerId from the listing sellerId', async () => {
+  it('copies farmerId from the listing sellerId, and defaults externalReference to null', async () => {
     const adminMock = await import('../../lib/admin')
     const added = (adminMock as unknown as { __added: Array<Record<string, unknown>> }).__added
     added.length = 0
@@ -65,7 +70,23 @@ describe('createHarvestOfferCore', () => {
       offerQuantityKg: 50,
       offerPricePerKgCdf: 500,
     })
-    expect(added[0]).toMatchObject({ farmerId: 'farmer-1', status: 'pending' })
+    expect(added[0]).toMatchObject({ farmerId: 'farmer-1', status: 'pending', externalReference: null })
+  })
+
+  it('stores a supplied externalReference', async () => {
+    const adminMock = await import('../../lib/admin')
+    const added = (adminMock as unknown as { __added: Array<Record<string, unknown>> }).__added
+    added.length = 0
+    await createHarvestOfferCore({
+      listingId: 'listing-active',
+      merchantId: 'merchant-1',
+      source: 'api',
+      partnerId: 'arom',
+      offerQuantityKg: 50,
+      offerPricePerKgCdf: 500,
+      externalReference: 'arom-po-123',
+    })
+    expect(added[0]).toMatchObject({ externalReference: 'arom-po-123' })
   })
 
   it('rejects an offer on a non-active listing', async () => {
@@ -131,5 +152,27 @@ describe('createHarvestOfferCore', () => {
         offerPricePerKgCdf: 0,
       }),
     ).rejects.toThrow('offerPricePerKgCdf')
+  })
+
+  it('participates in a caller-supplied transaction when given one', async () => {
+    const txGet = vi.fn(async (ref: { get: () => Promise<unknown> }) => ref.get())
+    const txSet = vi.fn()
+    const tx = { get: txGet, set: txSet } as unknown as FirebaseFirestore.Transaction
+
+    const { offerId } = await createHarvestOfferCore(
+      {
+        listingId: 'listing-active',
+        merchantId: 'merchant-1',
+        source: 'api',
+        partnerId: 'arom',
+        offerQuantityKg: 50,
+        offerPricePerKgCdf: 500,
+      },
+      tx,
+    )
+
+    expect(offerId).toBeTruthy()
+    expect(txGet).toHaveBeenCalled()
+    expect(txSet).toHaveBeenCalledWith(expect.objectContaining({ id: offerId }), expect.objectContaining({ status: 'pending' }))
   })
 })
