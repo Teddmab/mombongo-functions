@@ -12,8 +12,19 @@ import { functions, db } from '../lib/admin'
  * a retry can call the right notifier back (adminRetryPartnerNotification) —
  * existing docs predate this field and have no kind, which is treated as
  * 'payment_complete' there for backward compatibility.
+ *
+ * The `invoiceId` field name on SendSignedPartnerWebhookInput and on
+ * outbound_notification_failures docs predates offer_status_changed and
+ * is kept as-is rather than renamed/generalized (e.g. to `subjectId`) —
+ * mombongo-admin's dead-letter UI (FailedNotificationsSection in
+ * AdminPartnerInvoices.tsx) and its retry call both read/send this exact
+ * field name, and that repo is out of scope for this change. For
+ * kind: 'offer_status_changed', the offerId is passed in this same slot;
+ * it identifies "the record this notification is about", not literally
+ * always an external_invoices id. Follow-up: a small mombongo-admin PR to
+ * relabel this appropriately is a known, deliberate gap left by this change.
  */
-export type PartnerWebhookKind = 'payment_complete' | 'invoice_issued'
+export type PartnerWebhookKind = 'payment_complete' | 'invoice_issued' | 'offer_status_changed'
 
 export interface SendSignedPartnerWebhookInput {
   webhookUrl: string
@@ -21,6 +32,7 @@ export interface SendSignedPartnerWebhookInput {
   payload: object
   kind: PartnerWebhookKind
   partnerId: string
+  /** See the type-level doc comment above — reused as offerId for kind: 'offer_status_changed'. */
   invoiceId: string
   onSuccess: () => Promise<void>
 }

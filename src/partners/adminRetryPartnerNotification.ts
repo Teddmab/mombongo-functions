@@ -1,6 +1,7 @@
 import { db, functions } from '../lib/admin'
 import { notifyPartnerPaymentComplete } from './notifyPartnerPaymentComplete'
 import { notifyPartnerInvoiceIssued } from './notifyPartnerInvoiceIssued'
+import { notifyPartnerOfferStatusChanged } from './notifyPartnerOfferStatusChanged'
 
 /**
  * Admin-only manual retry for a failed outbound partner notification —
@@ -12,6 +13,14 @@ import { notifyPartnerInvoiceIssued } from './notifyPartnerInvoiceIssued'
  * so existing callers (the admin console doesn't pass it yet) keep their
  * exact current behavior. Every outbound_notification_failures doc from
  * before SDP-04 has no kind field either, for the same reason.
+ *
+ * The `invoiceId` parameter name is kept as-is (not renamed/generalized)
+ * for backward compatibility with mombongo-admin's existing retry call —
+ * see sendSignedPartnerWebhook.ts's doc comment. For kind:
+ * 'offer_status_changed', this same value is actually a harvest_offers
+ * id; the offer's own current status field is used as the status to
+ * (re-)notify, since by the time a retry is needed the authoritative
+ * transition has already committed.
  */
 export const adminRetryPartnerNotification = functions
   .region('europe-west1')
@@ -23,15 +32,29 @@ export const adminRetryPartnerNotification = functions
     if (callerSnap.data()?.role !== 'admin')
       throw new functions.https.HttpsError('permission-denied', 'Admin only')
 
-    const { invoiceId, kind } = (data ?? {}) as { invoiceId?: string; kind?: 'payment_complete' | 'invoice_issued' }
+    const { invoiceId, kind } = (data ?? {}) as {
+      invoiceId?: string
+      kind?: 'payment_complete' | 'invoice_issued' | 'offer_status_changed'
+    }
     if (!invoiceId)
       throw new functions.https.HttpsError('invalid-argument', 'invoiceId required')
+
+    functions.logger.info(`adminRetryPartnerNotification: triggered manually by ${context.auth.uid} for ${invoiceId} (kind=${kind ?? 'payment_complete'})`)
+
+    if (kind === 'offer_status_changed') {
+      const offerSnap = await db.collection('harvest_offers').doc(invoiceId).get()
+      if (!offerSnap.exists)
+        throw new functions.https.HttpsError('not-found', 'Offer not found')
+      const status = offerSnap.data()?.status as string | undefined
+      if (status !== 'accepted' && status !== 'declined')
+        throw new functions.https.HttpsError('failed-precondition', 'Offer has no resolved status to notify')
+      await notifyPartnerOfferStatusChanged(invoiceId, status)
+      return { success: true, triggeredAt: new Date().toISOString() }
+    }
 
     const invoiceSnap = await db.collection('external_invoices').doc(invoiceId).get()
     if (!invoiceSnap.exists)
       throw new functions.https.HttpsError('not-found', 'Invoice not found')
-
-    functions.logger.info(`adminRetryPartnerNotification: triggered manually by ${context.auth.uid} for invoice ${invoiceId} (kind=${kind ?? 'payment_complete'})`)
 
     if (kind === 'invoice_issued') {
       await notifyPartnerInvoiceIssued(invoiceId)

@@ -181,8 +181,14 @@ export const adminCreateAssistedInvoice = functions
         listingId: listingId ?? null,
         commodity: resolvedCommodity,
         offerId: null,
+        // No AROM-submitted offer exists for this origin — an
+        // admin-assisted invoice is never correlated back to a partner
+        // API offer submission.
+        externalReference: null,
         quantityKg: totalKg,
         pricePerKgCdf,
+        unitPriceCdf: pricePerKgCdf,
+        totalAmountCdf: pricePerKgCdf * totalKg,
         amountUsd,
         currency: 'USD',
         status: 'pending',

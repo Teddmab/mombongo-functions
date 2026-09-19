@@ -2,6 +2,7 @@ import { FieldValue } from 'firebase-admin/firestore'
 import { db, functions } from '../lib/admin'
 import { getUsdToCdf } from '../payments/initiateDeposit'
 import { notifyPartnerInvoiceIssued } from '../partners/notifyPartnerInvoiceIssued'
+import { notifyPartnerOfferStatusChanged } from '../partners/notifyPartnerOfferStatusChanged'
 
 /**
  * Farmer picks a winning offer on their own listing. Creates the
@@ -45,7 +46,7 @@ export const selectHarvestOffer = functions
       ? !!(await db.collection('partners').doc(offer.partnerId).get()).data()?.testMode
       : false
 
-    const invoiceId = await db.runTransaction(async (tx) => {
+    const { invoiceId, declinedPartnerOfferIds } = await db.runTransaction(async (tx) => {
       const invoiceRef = db.collection('external_invoices').doc()
       const listingRef = db.collection('product_listings').doc(offer.listingId)
 
@@ -58,6 +59,8 @@ export const selectHarvestOffer = functions
         ),
         tx.get(listingRef),
       ])
+
+      const totalAmountCdf = offer.offerQuantityKg * offer.offerPricePerKgCdf
 
       // Then all writes.
       tx.set(invoiceRef, {
@@ -72,12 +75,15 @@ export const selectHarvestOffer = functions
         farmerIds: [offer.farmerId],
         listingId: offer.listingId,
         offerId,
+        externalReference: (offer.externalReference as string | null) ?? null,
         // Snapshotted at creation time rather than joined later — an
         // invoice should describe what was actually sold even if the
         // listing itself changes or is deleted afterward. Also lets
         // notifyPartnerInvoiceIssued read one doc instead of three.
         commodity: (listingSnap.data()?.commodity as string) ?? null,
         quantityKg: offer.offerQuantityKg,
+        unitPriceCdf: offer.offerPricePerKgCdf,
+        totalAmountCdf,
         externalInvoiceId: invoiceRef.id,
         amountUsd,
         currency: 'USD',
@@ -85,23 +91,42 @@ export const selectHarvestOffer = functions
         testMode: partnerTestMode,
         createdAt: FieldValue.serverTimestamp(),
       })
-      tx.update(offerRef, { status: 'accepted', updatedAt: FieldValue.serverTimestamp() })
+      // invoiceId stored directly on the offer too — not just the reverse
+      // (invoice.offerId) — so getExternalHarvestOffer/getExternalHarvestOffers
+      // (the reconciliation API) can report it without an extra query.
+      tx.update(offerRef, { status: 'accepted', invoiceId: invoiceRef.id, updatedAt: FieldValue.serverTimestamp() })
+      const declinedPartnerOfferIds: string[] = []
       othersSnap.docs.forEach((d) => {
         if (d.id !== offerId) {
           tx.update(d.ref, { status: 'declined', updatedAt: FieldValue.serverTimestamp() })
+          if (d.data().partnerId) declinedPartnerOfferIds.push(d.id)
         }
       })
       tx.update(listingRef, { status: 'sold' })
 
-      return invoiceRef.id
+      return { invoiceId: invoiceRef.id, declinedPartnerOfferIds }
     })
+
+    // Every notification below happens only after the transaction has
+    // committed — offer_status_changed/invoice_issued must reflect
+    // durably-committed authoritative state, never a state a retried
+    // transaction attempt might not end up persisting.
 
     // If the winning offer came in via the partner API, notify them an
     // invoice now exists so they can decide whether to pay it via
     // createExternalInvoiceCheckout. In-app merchants see it directly in
     // their own app (SDP-07), no webhook needed.
     if (offer.partnerId) {
+      await notifyPartnerOfferStatusChanged(offerId, 'accepted')
       await notifyPartnerInvoiceIssued(invoiceId)
+    }
+    // Every competing offer that came in via a partner API gets its own
+    // declined notification — not just the winner's partner. If two
+    // different partners both offered on the same listing, each partner
+    // only ever learns about its own offer's outcome (notifyPartnerOfferStatusChanged
+    // resolves webhookUrl/secret from that offer's own partnerId).
+    for (const declinedOfferId of declinedPartnerOfferIds) {
+      await notifyPartnerOfferStatusChanged(declinedOfferId, 'declined')
     }
 
     return { invoiceId }
