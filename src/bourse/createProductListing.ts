@@ -1,4 +1,5 @@
 import { admin, functions } from '../lib/admin'
+import { canonicalizeCommodity } from '../lib/commodity'
 
 const db = admin.firestore()
 
@@ -44,7 +45,11 @@ export const createProductListing = functions
     }
 
     const userSnap = await db.collection('users').doc(uid).get()
-    const sellerName = userSnap.data()?.displayName ?? 'Vendeur'
+    // fullName is what every real account actually has set (displayName
+    // isn't populated anywhere in this codebase's sign-up flow) — checking
+    // displayName only meant this almost always fell through to the
+    // generic placeholder, including for external-partner-facing listings.
+    const sellerName = userSnap.data()?.displayName ?? userSnap.data()?.fullName ?? 'Vendeur'
     const sellerRole = userSnap.data()?.role ?? 'farmer'
 
     const ref = db.collection('product_listings').doc()
@@ -55,6 +60,10 @@ export const createProductListing = functions
       sellerName,
       sellerRole,
       commodity,
+      // Stable match key for partner catalog scoping (getExternalPublishedListings)
+      // — commodity itself is free text, never a safe thing to match a
+      // partner's allowlist against directly. See src/lib/commodity.ts.
+      commodityCode: canonicalizeCommodity(commodity),
       quantityKg,
       quality,
       province,

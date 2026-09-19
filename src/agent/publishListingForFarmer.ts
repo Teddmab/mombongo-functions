@@ -1,4 +1,5 @@
 import { db, admin, functions } from '../lib/admin'
+import { canonicalizeCommodity } from '../lib/commodity'
 
 export const publishListingForFarmer = functions
   .region('europe-west1')
@@ -32,6 +33,7 @@ export const publishListingForFarmer = functions
       sellerName: farmer.displayName ?? farmer.fullName ?? 'Agriculteur',
       publishedByAgentId: agentUid,
       commodity,
+      commodityCode: canonicalizeCommodity(commodity),
       quantityDesc: quantityDesc ?? '',
       pricePerUnitCdf: pricePerUnitCdf ?? 0,
       province: province ?? farmer.province ?? farmer.region ?? '',
