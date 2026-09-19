@@ -49,9 +49,15 @@ vi.mock('../../payments/initiateDeposit', () => ({
   getUsdToCdf: vi.fn(async () => 2800),
 }))
 
-const { notifyPartnerInvoiceIssuedMock } = vi.hoisted(() => ({ notifyPartnerInvoiceIssuedMock: vi.fn() }))
+const { notifyPartnerInvoiceIssuedMock, notifyPartnerOfferStatusChangedMock } = vi.hoisted(() => ({
+  notifyPartnerInvoiceIssuedMock: vi.fn(),
+  notifyPartnerOfferStatusChangedMock: vi.fn(),
+}))
 vi.mock('../../partners/notifyPartnerInvoiceIssued', () => ({
   notifyPartnerInvoiceIssued: notifyPartnerInvoiceIssuedMock,
+}))
+vi.mock('../../partners/notifyPartnerOfferStatusChanged', () => ({
+  notifyPartnerOfferStatusChanged: notifyPartnerOfferStatusChangedMock,
 }))
 
 import { selectHarvestOffer } from '../selectHarvestOffer'
@@ -108,6 +114,15 @@ describe('selectHarvestOffer', () => {
     )
   })
 
+  it('snapshots unitPriceCdf, totalAmountCdf, and the offer externalReference onto the invoice', async () => {
+    offers['o1'] = { farmerId: 'farmer-1', status: 'pending', listingId: 'l1', merchantId: 'm1', partnerId: 'arom', offerQuantityKg: 10, offerPricePerKgCdf: 2800, externalReference: 'arom-po-9' }
+    await (selectHarvestOffer as unknown as Handler)({ offerId: 'o1' }, { auth: { uid: 'farmer-1' } })
+    expect(tx.set).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ unitPriceCdf: 2800, totalAmountCdf: 28000, externalReference: 'arom-po-9', offerId: 'o1' }),
+    )
+  })
+
   it('falls back to null commodity if the listing has none', async () => {
     listingData = {}
     offers['o1'] = { farmerId: 'farmer-1', status: 'pending', listingId: 'l1', merchantId: 'm1', partnerId: null, offerQuantityKg: 10, offerPricePerKgCdf: 2800 }
@@ -115,10 +130,13 @@ describe('selectHarvestOffer', () => {
     expect(tx.set).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ commodity: null }))
   })
 
-  it('marks the selected offer accepted and the listing sold', async () => {
+  it('marks the selected offer accepted (with its invoiceId) and the listing sold', async () => {
     offers['o1'] = { farmerId: 'farmer-1', status: 'pending', listingId: 'l1', merchantId: 'm1', partnerId: null, offerQuantityKg: 10, offerPricePerKgCdf: 2800 }
-    await (selectHarvestOffer as unknown as Handler)({ offerId: 'o1' }, { auth: { uid: 'farmer-1' } })
-    expect(tx.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'o1' }), expect.objectContaining({ status: 'accepted' }))
+    const result = await (selectHarvestOffer as unknown as Handler)({ offerId: 'o1' }, { auth: { uid: 'farmer-1' } })
+    expect(tx.update).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'o1' }),
+      expect.objectContaining({ status: 'accepted', invoiceId: (result as { invoiceId: string }).invoiceId }),
+    )
     expect(tx.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'l1' }), { status: 'sold' })
   })
 
@@ -126,8 +144,8 @@ describe('selectHarvestOffer', () => {
     offers['o1'] = { farmerId: 'farmer-1', status: 'pending', listingId: 'l1', merchantId: 'm1', partnerId: null, offerQuantityKg: 10, offerPricePerKgCdf: 2800 }
     othersQueryResult = {
       docs: [
-        { id: 'o1', ref: makeDocRef('o1', 'harvest_offers') },
-        { id: 'o2', ref: makeDocRef('o2', 'harvest_offers') },
+        { id: 'o1', ref: makeDocRef('o1', 'harvest_offers'), data: () => ({ partnerId: null }) },
+        { id: 'o2', ref: makeDocRef('o2', 'harvest_offers'), data: () => ({ partnerId: null }) },
       ],
     }
     await (selectHarvestOffer as unknown as Handler)({ offerId: 'o1' }, { auth: { uid: 'farmer-1' } })
@@ -139,12 +157,43 @@ describe('selectHarvestOffer', () => {
     offers['o1'] = { farmerId: 'farmer-1', status: 'pending', listingId: 'l1', merchantId: 'm1', partnerId: null, offerQuantityKg: 10, offerPricePerKgCdf: 2800 }
     await (selectHarvestOffer as unknown as Handler)({ offerId: 'o1' }, { auth: { uid: 'farmer-1' } })
     expect(notifyPartnerInvoiceIssuedMock).not.toHaveBeenCalled()
+    expect(notifyPartnerOfferStatusChangedMock).not.toHaveBeenCalled()
   })
 
-  it('notifies the partner when the winning offer came from the partner API', async () => {
+  it('notifies the partner when the winning offer came from the partner API — both invoice_issued and offer_status_changed(accepted)', async () => {
     offers['o1'] = { farmerId: 'farmer-1', status: 'pending', listingId: 'l1', merchantId: 'm1', partnerId: 'arom', offerQuantityKg: 10, offerPricePerKgCdf: 2800 }
     const result = await (selectHarvestOffer as unknown as Handler)({ offerId: 'o1' }, { auth: { uid: 'farmer-1' } })
     expect(notifyPartnerInvoiceIssuedMock).toHaveBeenCalledWith((result as { invoiceId: string }).invoiceId)
+    expect(notifyPartnerOfferStatusChangedMock).toHaveBeenCalledWith('o1', 'accepted')
+  })
+
+  it('notifies offer_status_changed(declined) only for competing offers that have a partnerId', async () => {
+    offers['o1'] = { farmerId: 'farmer-1', status: 'pending', listingId: 'l1', merchantId: 'm1', partnerId: null, offerQuantityKg: 10, offerPricePerKgCdf: 2800 }
+    othersQueryResult = {
+      docs: [
+        { id: 'o1', ref: makeDocRef('o1', 'harvest_offers'), data: () => ({ partnerId: null }) },
+        { id: 'o2-partner', ref: makeDocRef('o2-partner', 'harvest_offers'), data: () => ({ partnerId: 'arom' }) },
+        { id: 'o3-inapp', ref: makeDocRef('o3-inapp', 'harvest_offers'), data: () => ({ partnerId: null }) },
+      ],
+    }
+    await (selectHarvestOffer as unknown as Handler)({ offerId: 'o1' }, { auth: { uid: 'farmer-1' } })
+    expect(notifyPartnerOfferStatusChangedMock).toHaveBeenCalledWith('o2-partner', 'declined')
+    expect(notifyPartnerOfferStatusChangedMock).not.toHaveBeenCalledWith('o3-inapp', 'declined')
+    // The winner here is in-app (partnerId: null), so no 'accepted' call at all.
+    expect(notifyPartnerOfferStatusChangedMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('notifies each distinct partner offer independently when multiple partner offers compete on one listing', async () => {
+    offers['o1'] = { farmerId: 'farmer-1', status: 'pending', listingId: 'l1', merchantId: 'm1', partnerId: 'arom', offerQuantityKg: 10, offerPricePerKgCdf: 2800 }
+    othersQueryResult = {
+      docs: [
+        { id: 'o1', ref: makeDocRef('o1', 'harvest_offers'), data: () => ({ partnerId: 'arom' }) },
+        { id: 'o2-other-partner', ref: makeDocRef('o2-other-partner', 'harvest_offers'), data: () => ({ partnerId: 'other-partner' }) },
+      ],
+    }
+    await (selectHarvestOffer as unknown as Handler)({ offerId: 'o1' }, { auth: { uid: 'farmer-1' } })
+    expect(notifyPartnerOfferStatusChangedMock).toHaveBeenCalledWith('o1', 'accepted')
+    expect(notifyPartnerOfferStatusChangedMock).toHaveBeenCalledWith('o2-other-partner', 'declined')
   })
 
   it('reads before writing inside the transaction (Firestore requirement)', async () => {

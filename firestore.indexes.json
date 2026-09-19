@@ -483,6 +483,31 @@
       ]
     },
     {
+      "collectionGroup": "harvest_offers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "partnerId", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "harvest_offers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "partnerId", "order": "ASCENDING" },
+        { "fieldPath": "status",    "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "harvest_offers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "partnerId",         "order": "ASCENDING" },
+        { "fieldPath": "externalReference", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "external_invoices",
       "queryScope": "COLLECTION",
       "fields": [

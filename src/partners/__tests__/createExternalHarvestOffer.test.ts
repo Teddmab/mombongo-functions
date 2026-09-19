@@ -14,16 +14,16 @@ vi.mock('../../lib/admin', () => ({
   },
 }))
 
-const { verifySigMock, coreMock } = vi.hoisted(() => ({ verifySigMock: vi.fn(), coreMock: vi.fn() }))
+const { verifySigMock, submitMock } = vi.hoisted(() => ({ verifySigMock: vi.fn(), submitMock: vi.fn() }))
 vi.mock('../verifyPartnerSignature', () => ({ verifyPartnerSignature: verifySigMock }))
-vi.mock('../../marketplace/createHarvestOfferCore', () => ({ createHarvestOfferCore: coreMock }))
+vi.mock('../createExternalHarvestOfferIdempotency', () => ({ submitIdempotentExternalHarvestOffer: submitMock }))
 
 import { createExternalHarvestOffer } from '../createExternalHarvestOffer'
 
 type Handler = (req: unknown, res: unknown) => Promise<void>
 
-function fakeReq(body: unknown, headers: Record<string, string> = { 'x-partner-id': 'arom' }) {
-  return { method: 'POST', header: (name: string) => headers[name], body }
+function fakeReq(body: unknown, headers: Record<string, string> = { 'x-partner-id': 'arom', 'idempotency-key': 'key-1' }) {
+  return { method: 'POST', header: (name: string) => headers[name.toLowerCase()] ?? headers[name], body }
 }
 
 function fakeRes() {
@@ -42,6 +42,37 @@ describe('createExternalHarvestOffer', () => {
     const res = fakeRes()
     await (createExternalHarvestOffer as unknown as Handler)(fakeReq({}), res)
     expect(res.statusCode).toBe(401)
+  })
+
+  it('requires the Idempotency-Key header', async () => {
+    verifySigMock.mockResolvedValueOnce(true)
+    const res = fakeRes()
+    await (createExternalHarvestOffer as unknown as Handler)(fakeReq({}, { 'x-partner-id': 'arom' }), res)
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toMatch(/Idempotency-Key/)
+    expect(submitMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an Idempotency-Key containing "/"', async () => {
+    verifySigMock.mockResolvedValueOnce(true)
+    const res = fakeRes()
+    await (createExternalHarvestOffer as unknown as Handler)(
+      fakeReq({}, { 'x-partner-id': 'arom', 'idempotency-key': 'a/b' }),
+      res,
+    )
+    expect(res.statusCode).toBe(400)
+    expect(submitMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an Idempotency-Key over the length limit', async () => {
+    verifySigMock.mockResolvedValueOnce(true)
+    const res = fakeRes()
+    await (createExternalHarvestOffer as unknown as Handler)(
+      fakeReq({}, { 'x-partner-id': 'arom', 'idempotency-key': 'x'.repeat(201) }),
+      res,
+    )
+    expect(res.statusCode).toBe(400)
+    expect(submitMock).not.toHaveBeenCalled()
   })
 
   it('fails closed when the partner has no merchantUid provisioned', async () => {
@@ -63,31 +94,67 @@ describe('createExternalHarvestOffer', () => {
     expect(res.statusCode).toBe(400)
   })
 
-  it('calls createHarvestOfferCore with source api and merchantId = partner merchantUid', async () => {
+  it('on first submission, returns submissionStatus: submitted with replayed: false', async () => {
     verifySigMock.mockResolvedValueOnce(true)
     partners['arom'] = { merchantUid: 'merchant-arom' }
-    coreMock.mockResolvedValueOnce({ offerId: 'offer-1' })
+    submitMock.mockResolvedValueOnce({ kind: 'created', offerId: 'offer-1', externalReference: null })
     const res = fakeRes()
     await (createExternalHarvestOffer as unknown as Handler)(
       fakeReq({ listingId: 'l1', offerQuantityKg: 10, offerPricePerKgCdf: 100 }),
       res,
     )
     expect(res.statusCode).toBe(200)
-    expect(res.body).toEqual({ status: 'accepted', offerId: 'offer-1' })
-    expect(coreMock).toHaveBeenCalledWith(
-      expect.objectContaining({ merchantId: 'merchant-arom', source: 'api', partnerId: 'arom' }),
+    expect(res.body).toEqual({ submissionStatus: 'submitted', offerId: 'offer-1', externalReference: null, replayed: false })
+    expect(submitMock).toHaveBeenCalledWith(
+      expect.objectContaining({ partnerId: 'arom', merchantId: 'merchant-arom', idempotencyKey: 'key-1' }),
     )
   })
 
-  it('surfaces createHarvestOfferCore validation errors as 400', async () => {
+  it('on replay, returns the same offerId with replayed: true', async () => {
     verifySigMock.mockResolvedValueOnce(true)
     partners['arom'] = { merchantUid: 'merchant-arom' }
-    coreMock.mockRejectedValueOnce(new Error('Listing not found or not open for offers'))
+    submitMock.mockResolvedValueOnce({ kind: 'replayed', offerId: 'offer-1', externalReference: 'ref-1' })
+    const res = fakeRes()
+    await (createExternalHarvestOffer as unknown as Handler)(
+      fakeReq({ listingId: 'l1', offerQuantityKg: 10, offerPricePerKgCdf: 100 }),
+      res,
+    )
+    expect(res.body).toEqual({ submissionStatus: 'submitted', offerId: 'offer-1', externalReference: 'ref-1', replayed: true })
+  })
+
+  it('returns 409 when the same key was used for a different payload', async () => {
+    verifySigMock.mockResolvedValueOnce(true)
+    partners['arom'] = { merchantUid: 'merchant-arom' }
+    submitMock.mockResolvedValueOnce({ kind: 'conflict' })
+    const res = fakeRes()
+    await (createExternalHarvestOffer as unknown as Handler)(
+      fakeReq({ listingId: 'l1', offerQuantityKg: 10, offerPricePerKgCdf: 100 }),
+      res,
+    )
+    expect(res.statusCode).toBe(409)
+  })
+
+  it('surfaces validation errors as 400', async () => {
+    verifySigMock.mockResolvedValueOnce(true)
+    partners['arom'] = { merchantUid: 'merchant-arom' }
+    submitMock.mockRejectedValueOnce(new Error('Listing not found or not open for offers'))
     const res = fakeRes()
     await (createExternalHarvestOffer as unknown as Handler)(
       fakeReq({ listingId: 'l1', offerQuantityKg: 10, offerPricePerKgCdf: 100 }),
       res,
     )
     expect(res.statusCode).toBe(400)
+  })
+
+  it('response never uses status: "accepted" (submission vs. business acceptance must not collide)', async () => {
+    verifySigMock.mockResolvedValueOnce(true)
+    partners['arom'] = { merchantUid: 'merchant-arom' }
+    submitMock.mockResolvedValueOnce({ kind: 'created', offerId: 'offer-1', externalReference: null })
+    const res = fakeRes()
+    await (createExternalHarvestOffer as unknown as Handler)(
+      fakeReq({ listingId: 'l1', offerQuantityKg: 10, offerPricePerKgCdf: 100 }),
+      res,
+    )
+    expect(res.body).not.toHaveProperty('status')
   })
 })

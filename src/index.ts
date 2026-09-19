@@ -735,3 +735,5 @@ export { adminUpdatePartnerAllowedCommodities } from './partners/adminUpdatePart
 // ─── Sprint DP: partner API extension (SDP-04) ──────────────────────────────
 export { getExternalPublishedListings }  from './partners/getExternalPublishedListings'
 export { createExternalHarvestOffer }    from './partners/createExternalHarvestOffer'
+export { getExternalHarvestOffer }       from './partners/getExternalHarvestOffer'
+export { getExternalHarvestOffers }      from './partners/getExternalHarvestOffers'
