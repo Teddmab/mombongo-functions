@@ -173,6 +173,25 @@
       "collectionGroup": "product_listings",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "status",        "order": "ASCENDING" },
+        { "fieldPath": "commodityCode", "order": "ASCENDING" },
+        { "fieldPath": "createdAt",     "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "product_listings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status",        "order": "ASCENDING" },
+        { "fieldPath": "commodityCode", "order": "ASCENDING" },
+        { "fieldPath": "province",      "order": "ASCENDING" },
+        { "fieldPath": "createdAt",     "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "product_listings",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "sellerId",  "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]

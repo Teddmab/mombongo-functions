@@ -1,4 +1,5 @@
 import { admin, functions } from '../lib/admin'
+import { canonicalizeCommodity } from '../lib/commodity'
 
 const db = admin.firestore()
 
@@ -59,6 +60,10 @@ export const createProductListing = functions
       sellerName,
       sellerRole,
       commodity,
+      // Stable match key for partner catalog scoping (getExternalPublishedListings)
+      // — commodity itself is free text, never a safe thing to match a
+      // partner's allowlist against directly. See src/lib/commodity.ts.
+      commodityCode: canonicalizeCommodity(commodity),
       quantityKg,
       quality,
       province,

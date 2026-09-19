@@ -76,7 +76,7 @@ describe('adminUpdatePartnerAllowedCommodities', () => {
     ).rejects.toThrow('not found')
   })
 
-  it('sets an allowlist for a valid request', async () => {
+  it('sets a canonicalized allowlist for a valid request', async () => {
     users['admin1'] = { role: 'admin' }
     partners['arom-qa-6d6e2e2a'] = { name: 'AROM QA' }
     const result = await call(
@@ -84,13 +84,20 @@ describe('adminUpdatePartnerAllowedCommodities', () => {
       { auth: { uid: 'admin1' } },
     )
     expect(result).toEqual({ success: true })
-    expect(updateMock).toHaveBeenCalledWith({ allowedCommodities: ['Ananas'] })
+    expect(updateMock).toHaveBeenCalledWith({ allowedCommodityCodes: ['ananas'] })
+  })
+
+  it('canonicalizes case/accents/whitespace variants to the same stored code', async () => {
+    users['admin1'] = { role: 'admin' }
+    partners['arom'] = { name: 'AROM' }
+    await call({ partnerId: 'arom', allowedCommodities: ['  Ananas  ', 'Maïs'] }, { auth: { uid: 'admin1' } })
+    expect(updateMock).toHaveBeenCalledWith({ allowedCommodityCodes: ['ananas', 'mais'] })
   })
 
   it('clears the restriction when allowedCommodities is null', async () => {
     users['admin1'] = { role: 'admin' }
     partners['arom'] = { name: 'AROM' }
     await call({ partnerId: 'arom', allowedCommodities: null }, { auth: { uid: 'admin1' } })
-    expect(updateMock).toHaveBeenCalledWith({ allowedCommodities: null })
+    expect(updateMock).toHaveBeenCalledWith({ allowedCommodityCodes: null })
   })
 })

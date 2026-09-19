@@ -1,5 +1,6 @@
 import * as crypto from 'crypto'
 import { admin, auth, db } from '../lib/admin'
+import { canonicalizeCommodity } from '../lib/commodity'
 
 /**
  * Shared by the CLI script (src/scripts/provisionPartner.ts) and the
@@ -21,11 +22,15 @@ export type ProvisionPartnerInput = {
   testMode: boolean
   createdBy?: string // admin uid, when invoked via adminProvisionPartner
   /**
-   * Commodities (exact match, e.g. "Ananas") this partner's catalog is
-   * scoped to. null/undefined means unrestricted — every active listing
-   * is visible, matching the old behavior for partners provisioned
-   * before this existed. An explicit [] means "nothing" (fail closed),
-   * not "everything" — the two must never be conflated.
+   * Commodities (human-readable, e.g. "Ananas" — canonicalized to a
+   * stable code before storage, see src/lib/commodity.ts) this partner's
+   * catalog is scoped to. null/undefined means unrestricted for a
+   * testMode partner (matching the old behavior for partners provisioned
+   * before this existed); a production (testMode: false) partner is
+   * always additionally capped to PRODUCTION_ALLOWED_COMMODITY_CODES
+   * regardless of this value — see getExternalPublishedListings.ts. An
+   * explicit [] means "nothing" (fail closed), not "everything" — the
+   * two must never be conflated.
    */
   allowedCommodities?: string[] | null
 } & (
@@ -92,7 +97,7 @@ export async function provisionPartnerCore(input: ProvisionPartnerInput): Promis
     outboundHmacSecret,
     webhookUrl: input.webhookUrl ?? null,
     merchantUid,
-    allowedCommodities: input.allowedCommodities ?? null,
+    allowedCommodityCodes: input.allowedCommodities ? input.allowedCommodities.map(canonicalizeCommodity) : null,
     testMode: input.testMode,
     active: true,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),

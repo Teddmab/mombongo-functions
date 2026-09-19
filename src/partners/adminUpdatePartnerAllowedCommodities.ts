@@ -1,4 +1,5 @@
 import { db, functions } from '../lib/admin'
+import { canonicalizeCommodity } from '../lib/commodity'
 
 /**
  * Admin-console entry point for scoping which commodities a partner's
@@ -38,7 +39,9 @@ export const adminUpdatePartnerAllowedCommodities = functions
       throw new functions.https.HttpsError('not-found', 'Partner not found')
     }
 
-    await partnerRef.update({ allowedCommodities: allowedCommodities ?? null })
+    await partnerRef.update({
+      allowedCommodityCodes: allowedCommodities ? allowedCommodities.map(canonicalizeCommodity) : null,
+    })
     functions.logger.info(`adminUpdatePartnerAllowedCommodities: ${context.auth.uid} updated allowedCommodities for partner ${partnerId}`)
     return { success: true }
   })

@@ -1,5 +1,37 @@
 import { db, functions } from '../lib/admin'
 import { verifyPartnerSignature } from './verifyPartnerSignature'
+import { canonicalizeCommodity } from '../lib/commodity'
+
+/**
+ * Hard safety ceiling for production (testMode: false) partners — a
+ * source-controlled constant, not a Firestore field, specifically so a
+ * stray/incorrect Firestore edit to a partner's own allowedCommodityCodes
+ * can never silently widen what a production partner sees. Business
+ * decision (2026-09): production AROM catalogue is Ananas-only to start.
+ * QA/test partners (testMode: true) are not capped by this list — they
+ * use only their own configured allowedCommodityCodes, which may include
+ * additional test-only commodities.
+ */
+const PRODUCTION_ALLOWED_COMMODITY_CODES: readonly string[] = ['ananas']
+
+/**
+ * Resolves what a partner may actually see, applying the production
+ * ceiling. Fails closed: an unset or invalid configuration on a
+ * production partner resolves to the ceiling itself, never to
+ * "everything" — this is the "fail closed if production configuration is
+ * invalid" requirement. QA/test with no configured allowlist remains
+ * unrestricted, matching this feature's pre-existing behavior for
+ * partners provisioned before per-partner scoping existed.
+ */
+function effectiveAllowedCommodityCodes(partner: {
+  testMode?: boolean
+  allowedCommodityCodes?: string[] | null
+}): string[] | null {
+  const configured = Array.isArray(partner.allowedCommodityCodes) ? partner.allowedCommodityCodes : null
+  if (partner.testMode) return configured
+  if (!configured) return [...PRODUCTION_ALLOWED_COMMODITY_CODES]
+  return configured.filter((c) => PRODUCTION_ALLOWED_COMMODITY_CODES.includes(c))
+}
 
 /** Normalizes a Firestore Timestamp, JS Date, or plain string into ISO 8601 — never a raw {_seconds,_nanoseconds} shape, which isn't a documented or stable wire format for an external partner. */
 function toIso(value: unknown): string | null {
@@ -73,26 +105,29 @@ export const getExternalPublishedListings = functions
     // Catalog scoping — a partner only ever sees the commodities it was
     // explicitly granted at provisioning/edit time (adminUpdatePartnerAllowedCommodities),
     // enforced here server-side regardless of what the request itself
-    // asks for. null/unset means unrestricted (the behavior every partner
-    // had before this existed); an empty array means nothing, never
-    // "everything" — the two must not be conflated.
+    // asks for, and matched on the canonical commodityCode (not the free-text
+    // commodity display string — see src/lib/commodity.ts for why). null
+    // means unrestricted (QA/test only — production always resolves to at
+    // least the production ceiling, see effectiveAllowedCommodityCodes);
+    // an empty array means nothing, never "everything".
     const partnerSnap = await db.collection('partners').doc(partnerId as string).get()
-    const allowedCommodities = partnerSnap.data()?.allowedCommodities as string[] | null | undefined
+    const allowedCodes = effectiveAllowedCommodityCodes(partnerSnap.data() as { testMode?: boolean; allowedCommodityCodes?: string[] | null } ?? {})
+    const requestedCode = commodity ? canonicalizeCommodity(commodity) : undefined
 
-    if (Array.isArray(allowedCommodities)) {
-      if (allowedCommodities.length === 0 || (commodity && !allowedCommodities.includes(commodity))) {
+    if (Array.isArray(allowedCodes)) {
+      if (allowedCodes.length === 0 || (requestedCode && !allowedCodes.includes(requestedCode))) {
         res.status(200).json({ listings: [] })
         return
       }
     }
 
     let q = db.collection('product_listings').where('status', '==', 'active') as FirebaseFirestore.Query
-    if (commodity) {
-      q = q.where('commodity', '==', commodity)
-    } else if (Array.isArray(allowedCommodities) && allowedCommodities.length > 0) {
+    if (requestedCode) {
+      q = q.where('commodityCode', '==', requestedCode)
+    } else if (Array.isArray(allowedCodes) && allowedCodes.length > 0) {
       // Firestore 'in' supports at most 10 values — fine for a curated
       // per-partner catalog; revisit if a partner ever needs more.
-      q = q.where('commodity', 'in', allowedCommodities.slice(0, 10))
+      q = q.where('commodityCode', 'in', allowedCodes.slice(0, 10))
     }
     if (province) q = q.where('province', '==', province)
 
