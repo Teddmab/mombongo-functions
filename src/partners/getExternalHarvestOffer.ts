@@ -1,6 +1,6 @@
 import { db, functions } from '../lib/admin'
 import { verifyPartnerSignature } from './verifyPartnerSignature'
-import { toExternalHarvestOfferDto } from './externalHarvestOfferDto'
+import { enrichExternalHarvestOffers } from './externalHarvestOfferEnrichment'
 
 /**
  * Reconciliation lookup — how AROM recovers when a createExternalHarvestOffer
@@ -13,6 +13,12 @@ import { toExternalHarvestOfferDto } from './externalHarvestOfferDto'
  * 403) — same non-descriptive-failure convention as verifyPartnerSignature,
  * so a guessed/leaked offerId can't be used to probe whether it exists at
  * all for another partner.
+ *
+ * An accepted offer is additionally enriched with seller/listing context
+ * (see externalHarvestOfferEnrichment.ts) — after acceptance the listing is
+ * 'sold' and no longer in getExternalPublishedListings, so this is the
+ * only place a partner can still get it. Enrichment never affects partner
+ * isolation: it runs only on an offer already verified to be the caller's.
  */
 export const getExternalHarvestOffer = functions
   .region('europe-west1')
@@ -44,7 +50,8 @@ export const getExternalHarvestOffer = functions
         res.status(404).send('Offer not found')
         return
       }
-      res.status(200).json(toExternalHarvestOfferDto(snap.id, snap.data()!))
+      const [offer] = await enrichExternalHarvestOffers([{ id: snap.id, data: snap.data()! }])
+      res.status(200).json(offer)
       return
     }
 
@@ -61,5 +68,6 @@ export const getExternalHarvestOffer = functions
     }
 
     const doc = querySnap.docs[0]
-    res.status(200).json(toExternalHarvestOfferDto(doc.id, doc.data()))
+    const [offer] = await enrichExternalHarvestOffers([{ id: doc.id, data: doc.data() }])
+    res.status(200).json(offer)
   })
