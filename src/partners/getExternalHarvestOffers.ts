@@ -1,7 +1,7 @@
 import { Timestamp } from 'firebase-admin/firestore'
 import { db, functions } from '../lib/admin'
 import { verifyPartnerSignature } from './verifyPartnerSignature'
-import { toExternalHarvestOfferDto } from './externalHarvestOfferDto'
+import { enrichExternalHarvestOffers } from './externalHarvestOfferEnrichment'
 
 const DEFAULT_LIMIT = 20
 const MAX_LIMIT = 100
@@ -106,7 +106,7 @@ export const getExternalHarvestOffers = functions
     }
 
     const snap = await q.limit(limit).get()
-    const offers = snap.docs.map((d) => toExternalHarvestOfferDto(d.id, d.data()))
+    const offers = await enrichExternalHarvestOffers(snap.docs.map((d) => ({ id: d.id, data: d.data() })))
 
     // Reuses the already-normalized DTO's updatedAt (via toExternalHarvestOfferDto's
     // own Timestamp/Date/string handling) rather than re-deriving it from the
