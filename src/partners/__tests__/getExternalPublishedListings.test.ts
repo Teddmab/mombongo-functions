@@ -1,7 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const listingDocs = [
-  { id: 'l1', data: () => ({ commodity: 'Manioc', province: 'Kinshasa', status: 'active' }) },
+let listingDocs: { id: string; data: () => Record<string, unknown> }[] = [
+  {
+    id: 'l1',
+    data: () => ({
+      commodity: 'Manioc', province: 'Kinshasa', territory: 'Lukaya', status: 'active',
+      quantityKg: 100, quality: 'A', pricePerKgCdf: 500,
+      sellerId: 'farmer1', sellerName: 'Jean Mbala', photoUrls: ['https://example.com/photo.jpg'],
+      description: 'Bonne récolte', availableFrom: '2026-09-01T00:00:00.000Z', availableUntil: '2026-10-01T00:00:00.000Z',
+      // Internal-only fields that must NOT leak into the partner response.
+      sellerRole: 'farmer', createdAt: { seconds: 1 }, updatedAt: { seconds: 2 },
+    }),
+  },
 ]
 const whereFilters: string[][] = []
 
@@ -23,6 +33,7 @@ vi.mock('../../lib/admin', () => ({
   },
   functions: {
     region: vi.fn(() => ({ https: { onRequest: vi.fn((h: unknown) => h) } })),
+    logger: { warn: vi.fn() },
   },
 }))
 
@@ -50,6 +61,18 @@ describe('getExternalPublishedListings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     whereFilters.length = 0
+    listingDocs = [
+      {
+        id: 'l1',
+        data: () => ({
+          commodity: 'Manioc', province: 'Kinshasa', territory: 'Lukaya', status: 'active',
+          quantityKg: 100, quality: 'A', pricePerKgCdf: 500,
+          sellerId: 'farmer1', sellerName: 'Jean Mbala', photoUrls: ['https://example.com/photo.jpg'],
+          description: 'Bonne récolte', availableFrom: '2026-09-01T00:00:00.000Z', availableUntil: '2026-10-01T00:00:00.000Z',
+          sellerRole: 'farmer', createdAt: { seconds: 1 }, updatedAt: { seconds: 2 },
+        }),
+      },
+    ]
   })
 
   it('rejects a non-POST method', async () => {
@@ -73,7 +96,15 @@ describe('getExternalPublishedListings', () => {
       res,
     )
     expect(res.statusCode).toBe(200)
-    expect(res.body).toEqual({ listings: [{ id: 'l1', commodity: 'Manioc', province: 'Kinshasa', status: 'active' }] })
+    expect(res.body).toEqual({
+      listings: [{
+        id: 'l1', commodity: 'Manioc', province: 'Kinshasa', territory: 'Lukaya',
+        quantityKg: 100, quality: 'A', pricePerKgCdf: 500,
+        sellerId: 'farmer1', sellerName: 'Jean Mbala', photoUrls: ['https://example.com/photo.jpg'],
+        description: 'Bonne récolte', availableFrom: '2026-09-01T00:00:00.000Z', availableUntil: '2026-10-01T00:00:00.000Z',
+        status: 'active',
+      }],
+    })
     expect(whereFilters).toEqual(
       expect.arrayContaining([
         ['status', 'active'],
@@ -81,5 +112,40 @@ describe('getExternalPublishedListings', () => {
         ['province', 'Kinshasa'],
       ]),
     )
+  })
+
+  it('never leaks internal-only fields (sellerRole, createdAt, updatedAt) into the response', async () => {
+    verifySigMock.mockResolvedValueOnce(true)
+    const res = fakeRes()
+    await (getExternalPublishedListings as unknown as Handler)(fakeReq({}), res)
+    const listing = (res.body as { listings: Record<string, unknown>[] }).listings[0]
+    expect(listing).not.toHaveProperty('sellerRole')
+    expect(listing).not.toHaveProperty('createdAt')
+    expect(listing).not.toHaveProperty('updatedAt')
+  })
+
+  it('excludes a listing with no valid quantityKg (e.g. agent-published, incompatible schema) instead of showing a 0 kg listing', async () => {
+    listingDocs = [
+      { id: 'l1', data: () => ({ commodity: 'Manioc', province: 'Kinshasa', status: 'active', quantityKg: 100, pricePerKgCdf: 500 }) },
+      { id: 'l2-agent-published', data: () => ({ commodity: 'Maïs', province: 'Kongo Central', status: 'active', quantityDesc: '2 sacs', pricePerUnitCdf: 20000 }) },
+    ]
+    verifySigMock.mockResolvedValueOnce(true)
+    const res = fakeRes()
+    await (getExternalPublishedListings as unknown as Handler)(fakeReq({}), res)
+    const ids = (res.body as { listings: { id: string }[] }).listings.map((l) => l.id)
+    expect(ids).toEqual(['l1'])
+  })
+
+  it('normalizes a Firestore Timestamp-shaped availableFrom/availableUntil to an ISO string', async () => {
+    const toDate = () => new Date('2026-09-01T00:00:00.000Z')
+    listingDocs = [
+      { id: 'l1', data: () => ({ commodity: 'Manioc', province: 'Kinshasa', status: 'active', quantityKg: 100, pricePerKgCdf: 500, availableFrom: { toDate }, availableUntil: null }) },
+    ]
+    verifySigMock.mockResolvedValueOnce(true)
+    const res = fakeRes()
+    await (getExternalPublishedListings as unknown as Handler)(fakeReq({}), res)
+    const listing = (res.body as { listings: Record<string, unknown>[] }).listings[0]
+    expect(listing.availableFrom).toBe('2026-09-01T00:00:00.000Z')
+    expect(listing.availableUntil).toBeNull()
   })
 })

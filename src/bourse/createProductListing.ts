@@ -44,7 +44,11 @@ export const createProductListing = functions
     }
 
     const userSnap = await db.collection('users').doc(uid).get()
-    const sellerName = userSnap.data()?.displayName ?? 'Vendeur'
+    // fullName is what every real account actually has set (displayName
+    // isn't populated anywhere in this codebase's sign-up flow) — checking
+    // displayName only meant this almost always fell through to the
+    // generic placeholder, including for external-partner-facing listings.
+    const sellerName = userSnap.data()?.displayName ?? userSnap.data()?.fullName ?? 'Vendeur'
     const sellerRole = userSnap.data()?.role ?? 'farmer'
 
     const ref = db.collection('product_listings').doc()
