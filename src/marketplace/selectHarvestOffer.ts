@@ -37,6 +37,14 @@ export const selectHarvestOffer = functions
     const usdToCdf = await getUsdToCdf(db)
     const amountUsd = (offer.offerQuantityKg * offer.offerPricePerKgCdf) / usdToCdf
 
+    // A QA/sandbox partner's offer must produce a testMode invoice too —
+    // otherwise its checkout would silently route to production PawaPay
+    // (see initiateExternalInvoiceMobileMoney.ts). No partnerId means an
+    // in-app sale, never testMode.
+    const partnerTestMode = offer.partnerId
+      ? !!(await db.collection('partners').doc(offer.partnerId).get()).data()?.testMode
+      : false
+
     const invoiceId = await db.runTransaction(async (tx) => {
       const invoiceRef = db.collection('external_invoices').doc()
       const listingRef = db.collection('product_listings').doc(offer.listingId)
@@ -74,7 +82,7 @@ export const selectHarvestOffer = functions
         amountUsd,
         currency: 'USD',
         status: 'pending',
-        testMode: false,
+        testMode: partnerTestMode,
         createdAt: FieldValue.serverTimestamp(),
       })
       tx.update(offerRef, { status: 'accepted', updatedAt: FieldValue.serverTimestamp() })

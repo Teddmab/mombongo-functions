@@ -8,6 +8,9 @@ import { createCheckoutForInvoiceCore } from '../partners/createCheckoutForInvoi
  * context.auth.uid here; no partner doc to resolve it from.
  */
 export const payHarvestInvoice = functions
+  // See createExternalInvoiceCheckout.ts for why PAWAPAY_API_KEY_SANDBOX
+  // isn't declared here yet.
+  .runWith({ secrets: ['PAWAPAY_API_KEY'] })
   .region('europe-west1')
   .https.onCall(async (data, context) => {
     const uid = context.auth?.uid
@@ -39,6 +42,7 @@ export const payHarvestInvoice = functions
       amountUsd: invoice.amountUsd,
       merchantUid: uid,
       partnerId: null,
+      testMode: !!invoice.testMode,
       method,
       phone,
       operator,
@@ -50,6 +54,9 @@ export const payHarvestInvoice = functions
       }
       if (result.kind === 'bank_transfer_unimplemented') {
         throw new functions.https.HttpsError('unimplemented', 'Bank transfer not yet implemented')
+      }
+      if (result.kind === 'sandbox_not_configured') {
+        throw new functions.https.HttpsError('unavailable', 'PawaPay sandbox is not configured for testMode invoices yet.')
       }
       throw new functions.https.HttpsError('internal', result.message)
     }

@@ -15,7 +15,9 @@ vi.mock('../../lib/admin', () => ({
     },
   },
   functions: {
-    region: vi.fn(() => ({ https: { onCall: vi.fn((h: unknown) => h) } })),
+    runWith: vi.fn(() => ({
+      region: vi.fn(() => ({ https: { onCall: vi.fn((h: unknown) => h) } })),
+    })),
     https: {
       HttpsError: class extends Error {
         constructor(public code: string, msg: string) { super(msg) }

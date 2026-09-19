@@ -17,6 +17,12 @@ import { createCheckoutForInvoiceCore } from './createCheckoutForInvoiceCore'
  * real payment) — mobile_money is the only implemented method today.
  */
 export const createExternalInvoiceCheckout = functions
+  // PAWAPAY_API_KEY_SANDBOX is read via process.env below but deliberately
+  // not declared here — it doesn't exist in Secret Manager yet, and
+  // runWith({secrets}) fails the whole deploy if a declared secret is
+  // missing (see the mombongo-dev outage post-mortem, 2026-09-18). Add it
+  // here once Teddy provisions the real secret.
+  .runWith({ secrets: ['PAWAPAY_API_KEY'] })
   .region('europe-west1')
   .https.onRequest(async (req, res) => {
     if (req.method !== 'POST') {
@@ -75,6 +81,7 @@ export const createExternalInvoiceCheckout = functions
       amountUsd: invoice.amountUsd,
       merchantUid,
       partnerId: partnerId as string,
+      testMode: !!invoice.testMode,
       method,
       phone,
       operator,
@@ -85,6 +92,8 @@ export const createExternalInvoiceCheckout = functions
         res.status(400).send('phone and operator required for mobile_money')
       } else if (result.kind === 'bank_transfer_unimplemented') {
         res.status(501).send('Bank transfer not yet implemented')
+      } else if (result.kind === 'sandbox_not_configured') {
+        res.status(503).send('PawaPay sandbox is not configured for testMode invoices yet — contact Mombongo.')
       } else {
         res.status(502).send(result.message)
       }
