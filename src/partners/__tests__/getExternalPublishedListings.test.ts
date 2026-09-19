@@ -13,15 +13,19 @@ let listingDocs: { id: string; data: () => Record<string, unknown> }[] = [
     }),
   },
 ]
-const whereFilters: string[][] = []
+const whereFilters: [string, string, unknown][] = []
+let partnerData: Record<string, unknown> = { allowedCommodities: null }
 
 vi.mock('../../lib/admin', () => ({
   db: {
     collection: (name: string) => {
+      if (name === 'partners') {
+        return { doc: () => ({ get: async () => ({ exists: true, data: () => partnerData }) }) }
+      }
       if (name !== 'product_listings') throw new Error(`unexpected collection ${name}`)
       const chain: any = {
-        where: (field: string, _op: string, value: string) => {
-          whereFilters.push([field, value])
+        where: (field: string, op: string, value: unknown) => {
+          whereFilters.push([field, op, value])
           return chain
         },
         orderBy: () => chain,
@@ -61,6 +65,7 @@ describe('getExternalPublishedListings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     whereFilters.length = 0
+    partnerData = { allowedCommodities: null }
     listingDocs = [
       {
         id: 'l1',
@@ -107,9 +112,9 @@ describe('getExternalPublishedListings', () => {
     })
     expect(whereFilters).toEqual(
       expect.arrayContaining([
-        ['status', 'active'],
-        ['commodity', 'Manioc'],
-        ['province', 'Kinshasa'],
+        ['status', '==', 'active'],
+        ['commodity', '==', 'Manioc'],
+        ['province', '==', 'Kinshasa'],
       ]),
     )
   })
@@ -147,5 +152,53 @@ describe('getExternalPublishedListings', () => {
     const listing = (res.body as { listings: Record<string, unknown>[] }).listings[0]
     expect(listing.availableFrom).toBe('2026-09-01T00:00:00.000Z')
     expect(listing.availableUntil).toBeNull()
+  })
+
+  describe('per-partner catalog scoping (allowedCommodities)', () => {
+    it('is unrestricted when allowedCommodities is null (pre-existing partners, unchanged behavior)', async () => {
+      partnerData = { allowedCommodities: null }
+      verifySigMock.mockResolvedValueOnce(true)
+      const res = fakeRes()
+      await (getExternalPublishedListings as unknown as Handler)(fakeReq({}), res)
+      expect(res.statusCode).toBe(200)
+      expect((res.body as { listings: unknown[] }).listings).toHaveLength(1)
+      expect(whereFilters.some(([field]) => field === 'commodity')).toBe(false)
+    })
+
+    it('scopes the query to the allowlist when no commodity is requested', async () => {
+      partnerData = { allowedCommodities: ['Ananas'] }
+      verifySigMock.mockResolvedValueOnce(true)
+      const res = fakeRes()
+      await (getExternalPublishedListings as unknown as Handler)(fakeReq({}), res)
+      expect(whereFilters).toContainEqual(['commodity', 'in', ['Ananas']])
+    })
+
+    it('returns nothing, without querying, when the requested commodity is outside the allowlist', async () => {
+      partnerData = { allowedCommodities: ['Ananas'] }
+      verifySigMock.mockResolvedValueOnce(true)
+      const res = fakeRes()
+      await (getExternalPublishedListings as unknown as Handler)(fakeReq({ commodity: 'Manioc' }), res)
+      expect(res.statusCode).toBe(200)
+      expect(res.body).toEqual({ listings: [] })
+      expect(whereFilters).toHaveLength(0)
+    })
+
+    it('allows the requested commodity through when it is in the allowlist', async () => {
+      partnerData = { allowedCommodities: ['Ananas', 'Manioc'] }
+      verifySigMock.mockResolvedValueOnce(true)
+      const res = fakeRes()
+      await (getExternalPublishedListings as unknown as Handler)(fakeReq({ commodity: 'Manioc' }), res)
+      expect(res.statusCode).toBe(200)
+      expect(whereFilters).toContainEqual(['commodity', '==', 'Manioc'])
+    })
+
+    it('returns nothing when allowedCommodities is explicitly empty — that means nothing, not everything', async () => {
+      partnerData = { allowedCommodities: [] }
+      verifySigMock.mockResolvedValueOnce(true)
+      const res = fakeRes()
+      await (getExternalPublishedListings as unknown as Handler)(fakeReq({}), res)
+      expect(res.body).toEqual({ listings: [] })
+      expect(whereFilters).toHaveLength(0)
+    })
   })
 })

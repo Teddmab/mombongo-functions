@@ -20,6 +20,14 @@ export type ProvisionPartnerInput = {
   webhookUrl?: string | null
   testMode: boolean
   createdBy?: string // admin uid, when invoked via adminProvisionPartner
+  /**
+   * Commodities (exact match, e.g. "Ananas") this partner's catalog is
+   * scoped to. null/undefined means unrestricted — every active listing
+   * is visible, matching the old behavior for partners provisioned
+   * before this existed. An explicit [] means "nothing" (fail closed),
+   * not "everything" — the two must never be conflated.
+   */
+  allowedCommodities?: string[] | null
 } & (
   | { merchantMode: 'new'; merchantEmail: string; merchantDisplayName: string }
   | { merchantMode: 'existing'; existingMerchantUid: string }
@@ -84,6 +92,7 @@ export async function provisionPartnerCore(input: ProvisionPartnerInput): Promis
     outboundHmacSecret,
     webhookUrl: input.webhookUrl ?? null,
     merchantUid,
+    allowedCommodities: input.allowedCommodities ?? null,
     testMode: input.testMode,
     active: true,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),

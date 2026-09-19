@@ -34,10 +34,16 @@ export const adminProvisionPartner = functions
       merchantEmail?: string
       merchantDisplayName?: string
       existingMerchantUid?: string
+      allowedCommodities?: string[] | null
     }
 
     if (!body.partnerId || !body.partnerName || !body.merchantMode)
       throw new functions.https.HttpsError('invalid-argument', 'partnerId, partnerName, and merchantMode are required')
+
+    if (body.allowedCommodities !== undefined && body.allowedCommodities !== null) {
+      if (!Array.isArray(body.allowedCommodities) || body.allowedCommodities.some((c) => typeof c !== 'string' || !c.trim()))
+        throw new functions.https.HttpsError('invalid-argument', 'allowedCommodities must be an array of non-empty strings, or null')
+    }
 
     if (body.webhookUrl) {
       const check = validateWebhookUrl(body.webhookUrl)
@@ -54,6 +60,7 @@ export const adminProvisionPartner = functions
         webhookUrl: body.webhookUrl ?? null,
         testMode: body.testMode ?? true, // fail toward test, not live
         createdBy: context.auth.uid,
+        allowedCommodities: body.allowedCommodities ?? null,
         merchantMode: 'existing',
         existingMerchantUid: body.existingMerchantUid,
       }
@@ -66,6 +73,7 @@ export const adminProvisionPartner = functions
         webhookUrl: body.webhookUrl ?? null,
         testMode: body.testMode ?? true,
         createdBy: context.auth.uid,
+        allowedCommodities: body.allowedCommodities ?? null,
         merchantMode: 'new',
         merchantEmail: body.merchantEmail,
         merchantDisplayName: body.merchantDisplayName,

@@ -70,8 +70,30 @@ export const getExternalPublishedListings = functions
       limit?: number
     }
 
+    // Catalog scoping — a partner only ever sees the commodities it was
+    // explicitly granted at provisioning/edit time (adminUpdatePartnerAllowedCommodities),
+    // enforced here server-side regardless of what the request itself
+    // asks for. null/unset means unrestricted (the behavior every partner
+    // had before this existed); an empty array means nothing, never
+    // "everything" — the two must not be conflated.
+    const partnerSnap = await db.collection('partners').doc(partnerId as string).get()
+    const allowedCommodities = partnerSnap.data()?.allowedCommodities as string[] | null | undefined
+
+    if (Array.isArray(allowedCommodities)) {
+      if (allowedCommodities.length === 0 || (commodity && !allowedCommodities.includes(commodity))) {
+        res.status(200).json({ listings: [] })
+        return
+      }
+    }
+
     let q = db.collection('product_listings').where('status', '==', 'active') as FirebaseFirestore.Query
-    if (commodity) q = q.where('commodity', '==', commodity)
+    if (commodity) {
+      q = q.where('commodity', '==', commodity)
+    } else if (Array.isArray(allowedCommodities) && allowedCommodities.length > 0) {
+      // Firestore 'in' supports at most 10 values — fine for a curated
+      // per-partner catalog; revisit if a partner ever needs more.
+      q = q.where('commodity', 'in', allowedCommodities.slice(0, 10))
+    }
     if (province) q = q.where('province', '==', province)
 
     const snap = await q.orderBy('createdAt', 'desc').limit(lim).get()
