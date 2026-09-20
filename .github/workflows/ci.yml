@@ -1,10 +1,22 @@
-name: CI — Pull Request
+# Validation only. This workflow never deploys anything and never references
+# a deployment credential — pushes and pull requests are checked, nothing more.
+# Deployment is a separate, manual-only workflow: deploy-functions.yml
+# (see docs/DEPLOYMENT.md).
+#
+# This repo's default branch is feature/s2-00-data-foundation (there is no
+# main/dev branch); GitHub's own default-branch setting confirms it.
+
+name: CI — Validation
 
 on:
   pull_request:
     branches: [feature/s2-00-data-foundation]
   push:
     branches: [feature/s2-00-data-foundation]
+
+# Read-only, workflow-wide. Nothing here needs to write to the repository.
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -17,8 +29,11 @@ jobs:
   typecheck:
     name: TypeScript
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -30,8 +45,11 @@ jobs:
     name: Unit Tests
     runs-on: ubuntu-latest
     needs: typecheck
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -43,8 +61,11 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     needs: unit-tests
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}

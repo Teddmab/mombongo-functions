@@ -1,0 +1,194 @@
+# Manual-only deployment of Cloud Functions to mombongo-dev.
+#
+# The ONLY trigger is workflow_dispatch. Nothing — no push, pull request, tag
+# or schedule — can deploy. See docs/DEPLOYMENT.md for the owner setup.
+#
+# What "mombongo-dev" is: there is no separate staging or production Firebase
+# project for Mombongo. mombongo-dev serves real users AND partner test
+# traffic (test-mode partners are distinguished by a `testMode` flag on data,
+# not by a different project). A deploy here therefore reaches live users.
+# For that reason the target is a fixed literal below and is never an input,
+# and there is deliberately no dev/prod selector.
+#
+# Scope: Functions only (`--only functions`). Firestore rules, Storage rules
+# and indexes are never deployed here; indexes need their own deliberate
+# process (docs/DEPLOYMENT.md).
+#
+# Credential: FIREBASE_TOKEN is referenced only by steps of the final `deploy`
+# job, which runs under the `mombongo-functions-deploy` environment. Guard and
+# validation run first, without it.
+
+name: Deploy Functions (mombongo-dev, manual only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_project:
+        description: "Type the project ID exactly: mombongo-dev"
+        required: true
+        type: string
+      confirm_phrase:
+        description: "Type exactly: DEPLOY FUNCTIONS TO MOMBONGO-DEV"
+        required: true
+        type: string
+
+# Deny by default; each job grants itself the read access it needs.
+permissions: {}
+
+concurrency:
+  group: deploy-functions-mombongo-dev
+  cancel-in-progress: false # never cancel a deploy mid-flight
+
+env:
+  NODE_VERSION: "20"
+  FIREBASE_PROJECT: mombongo-dev
+  DEFAULT_BRANCH: feature/s2-00-data-foundation
+
+jobs:
+  guard:
+    name: Guard (no credentials)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      sha: ${{ steps.pin.outputs.sha }}
+    steps:
+      - name: Verify trigger, ref and both confirmations
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          REF_TYPE: ${{ github.ref_type }}
+          CONFIRM_PROJECT: ${{ inputs.confirm_project }}
+          CONFIRM_PHRASE: ${{ inputs.confirm_phrase }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+          [ "$EVENT_NAME" = "workflow_dispatch" ] || fail "Only a manual dispatch may deploy."
+          [ "$REF_TYPE" = "branch" ] || fail "Refusing to deploy from a $REF_TYPE; run this workflow from the default branch."
+          [ "$REF" = "refs/heads/$DEFAULT_BRANCH" ] || fail "Refusing to deploy from $REF; only refs/heads/$DEFAULT_BRANCH is allowed."
+          [ "$CONFIRM_PROJECT" = "$FIREBASE_PROJECT" ] || fail "confirm_project must be exactly: $FIREBASE_PROJECT"
+          [ "$CONFIRM_PHRASE" = "DEPLOY FUNCTIONS TO MOMBONGO-DEV" ] || fail "confirm_phrase must be exactly: DEPLOY FUNCTIONS TO MOMBONGO-DEV"
+
+      - name: Verify this commit is the live tip of the default branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          tip=$(gh api "repos/$REPO/git/ref/heads/$DEFAULT_BRANCH" --jq .object.sha)
+          if [ "$tip" != "$SHA" ]; then
+            echo "::error::Dispatched commit $SHA is not the live tip of $DEFAULT_BRANCH ($tip). Re-run from the current head."
+            exit 1
+          fi
+
+      - name: Pin the commit for later jobs
+        id: pin
+        env:
+          SHA: ${{ github.sha }}
+        run: echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+  validate:
+    name: Validate (no credentials)
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.guard.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Require the pinned Firebase CLI, installed from the lockfile
+        run: |
+          set -euo pipefail
+          expected=$(node -p "require('./package.json').devDependencies['firebase-tools'] || ''")
+          echo "$expected" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error::firebase-tools must be pinned to an exact version in package.json"; exit 1; }
+          [ -x ./node_modules/.bin/firebase ] || { echo "::error::pinned firebase CLI is not installed locally"; exit 1; }
+          actual=$(./node_modules/.bin/firebase --version)
+          [ "$actual" = "$expected" ] || { echo "::error::installed firebase CLI $actual differs from pinned $expected"; exit 1; }
+          echo "firebase CLI $actual (pinned)"
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  deploy:
+    name: Deploy Functions to mombongo-dev
+    needs: [guard, validate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: mombongo-functions-deploy
+    permissions:
+      contents: read
+    steps:
+      - name: Re-verify the commit is still the live tip (a merge may have landed during validation)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ needs.guard.outputs.sha }}
+        run: |
+          set -euo pipefail
+          tip=$(gh api "repos/$REPO/git/ref/heads/$DEFAULT_BRANCH" --jq .object.sha)
+          if [ "$tip" != "$SHA" ]; then
+            echo "::error::$DEFAULT_BRANCH moved to $tip while this run was validating $SHA. Nothing was deployed; re-run from the current head."
+            exit 1
+          fi
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.guard.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Require the pinned Firebase CLI, installed from the lockfile
+        run: |
+          set -euo pipefail
+          expected=$(node -p "require('./package.json').devDependencies['firebase-tools'] || ''")
+          echo "$expected" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error::firebase-tools must be pinned to an exact version in package.json"; exit 1; }
+          [ -x ./node_modules/.bin/firebase ] || { echo "::error::pinned firebase CLI is not installed locally"; exit 1; }
+          [ "$(./node_modules/.bin/firebase --version)" = "$expected" ] || { echo "::error::installed firebase CLI differs from pinned $expected"; exit 1; }
+      - run: npm run build
+
+      - name: Inventory before deploy (ids and hashes only are kept)
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          [ -n "${FIREBASE_TOKEN:-}" ] || { echo "::error::FIREBASE_TOKEN is not available to this job. Nothing was deployed."; exit 1; }
+          ./node_modules/.bin/firebase functions:list --project mombongo-dev --json --token "$FIREBASE_TOKEN" > "$RUNNER_TEMP/functions.before.json"
+
+      - name: Deploy Functions only
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          ./node_modules/.bin/firebase deploy --only functions --project mombongo-dev --non-interactive --token "$FIREBASE_TOKEN"
+
+      - name: Inventory after deploy
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          ./node_modules/.bin/firebase functions:list --project mombongo-dev --json --token "$FIREBASE_TOKEN" > "$RUNNER_TEMP/functions.after.json"
+
+      # No credential in this step's environment: it only reads the two files above.
+      - name: Verify deployment and write the report
+        env:
+          SHA: ${{ needs.guard.outputs.sha }}
+        run: |
+          set -euo pipefail
+          node lib/deploy/verifyDeployment.js \
+            --project mombongo-dev \
+            --commit "$SHA" \
+            --before "$RUNNER_TEMP/functions.before.json" \
+            --after "$RUNNER_TEMP/functions.after.json"
