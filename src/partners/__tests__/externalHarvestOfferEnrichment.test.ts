@@ -98,6 +98,16 @@ describe('sanitizeDisplayName', () => {
   it('does not treat a few digits as a phone number', () => {
     expect(sanitizeDisplayName('Coopérative 2 Rives')).toBe('Coopérative 2 Rives')
   })
+  // Control characters are built with fromCharCode on purpose: this file must stay plain text.
+  it.each([0x00, 0x01, 0x08, 0x0b, 0x1f, 0x7f])('replaces control character code %i inside a name with a space', (code) => {
+    const c = String.fromCharCode(code)
+    expect(sanitizeDisplayName(`Jean${c}Mbala`)).toBe('Jean Mbala')
+    expect(sanitizeDisplayName(`${c}Jean Mbala${c}`)).toBe('Jean Mbala')
+  })
+
+  it('returns null for a value made only of control characters', () => {
+    expect(sanitizeDisplayName(String.fromCharCode(0, 1, 0x1f, 0x7f))).toBeNull()
+  })
 })
 
 describe('resolveListingObjectPath', () => {
@@ -161,6 +171,43 @@ describe('resolveListingObjectPath', () => {
     expect(resolveListingObjectPath(url, { ...ctx, sellerId: 'a/b' })).toBeNull()
     expect(resolveListingObjectPath(url, { ...ctx, sellerId: '' })).toBeNull()
     expect(resolveListingObjectPath(url, { ...ctx, listingId: '' })).toBeNull()
+  })
+  // Every C0 control except tab/LF/CR (which the URL parser strips before we see them) and DEL, as a literal
+  // character and percent-encoded: both must be rejected. Built with fromCharCode — this file must stay plain text.
+  const CONTROL_CODES = [...Array.from({ length: 0x20 }, (_, i) => i).filter((i) => ![0x09, 0x0a, 0x0d].includes(i)), 0x7f]
+  const withName = (name: string) => `https://storage.googleapis.com/${BUCKET}/listings/farmer-1/l1/${name}?X-Goog-Signature=x`
+
+  it.each(CONTROL_CODES)('rejects a LITERAL control character code %i in the object name', (code) => {
+    expect(resolveListingObjectPath(withName(`a${String.fromCharCode(code)}b.jpg`), ctx)).toBeNull()
+  })
+
+  it.each(CONTROL_CODES)('rejects a PERCENT-ENCODED control character code %i in the object name', (code) => {
+    expect(resolveListingObjectPath(withName(`a%${code.toString(16).padStart(2, '0')}b.jpg`), ctx)).toBeNull()
+  })
+
+  it('rejects a literal NUL anywhere in the path, including the prefix', () => {
+    const nul = String.fromCharCode(0)
+    expect(resolveListingObjectPath(`https://storage.googleapis.com/${BUCKET}/listings/farmer-1/l1/${nul}`, ctx)).toBeNull()
+    expect(resolveListingObjectPath(`https://storage.googleapis.com/${BUCKET}/listings/farmer-1${nul}/l1/1-a.jpg`, ctx)).toBeNull()
+    expect(resolveListingObjectPath(withName(`1-a.jpg${nul}`), ctx)).toBeNull()
+  })
+
+  it('still rejects percent-encoded traversal (single and mixed-case encodings, and a decoded %2F separator)', () => {
+    for (const p of ['%2e%2e/x.jpg', '%2E%2E/x.jpg', '.%2e/x.jpg', '%2e./x.jpg', '..%2Fx.jpg', 'a%2F..%2F..%2Fx.jpg']) {
+      expect(resolveListingObjectPath(withName(p), ctx)).toBeNull()
+    }
+  })
+
+  it('accepts a realistic path in the development bucket', () => {
+    const devCtx = { bucketName: 'mombongo-dev.firebasestorage.app', sellerId: 'Kq3ZxY0fWmN8pLr2VbTd5cHu7AeS', listingId: 'a1B2c3D4e5F6g7H8i9J0' }
+    const object = `listings/${devCtx.sellerId}/${devCtx.listingId}/1758412800000-Ananas récolte 2.jpg`
+    expect(resolveListingObjectPath(storedUrl(object, devCtx.bucketName), devCtx)).toBe(object)
+    // and the same URL is refused for any other bucket
+    expect(resolveListingObjectPath(storedUrl(object, devCtx.bucketName), { ...devCtx, bucketName: 'some-other-project.firebasestorage.app' })).toBeNull()
+  })
+
+  it('pins the URL parser normalisation: tab/LF/CR are stripped before validation, so only the validated path is signed', () => {
+    expect(resolveListingObjectPath(withName(`1-${String.fromCharCode(9)}a${String.fromCharCode(10)}.jpg`), ctx)).toBe('listings/farmer-1/l1/1-a.jpg')
   })
 })
 
@@ -383,5 +430,40 @@ describe('enrichExternalHarvestOffers', () => {
     }
     expect(Object.keys(out.seller!).sort()).toEqual(['displayName', 'id'])
     expect(Object.keys(out.listing!).sort()).toEqual(['commodity', 'commodityCode', 'province', 'territory', 'thumbnail'])
+  })
+
+  it('keeps two (listing, seller) pairs apart even when their ids concatenate to the same string', async () => {
+    // 'ab'+'c' and 'a'+'bc' are equal without a separator; the internal key must not merge them.
+    listings['ab'] = listing({ sellerId: 'c', commodity: 'Ananas-ab', photoUrls: [storedUrl('listings/c/ab/1-a.jpg')] })
+    listings['a'] = listing({ sellerId: 'bc', commodity: 'Ananas-a', photoUrls: [storedUrl('listings/bc/a/1-a.jpg')] })
+    const out = await enrichExternalHarvestOffers([
+      { id: 'o1', data: acceptedOffer({ farmerId: 'c', listingId: 'ab' }) },
+      { id: 'o2', data: acceptedOffer({ farmerId: 'bc', listingId: 'a' }) },
+    ])
+    expect(out.map((o) => o.listing?.commodity)).toEqual(['Ananas-ab', 'Ananas-a'])
+    expect(out.map((o) => o.seller?.id)).toEqual(['c', 'bc'])
+    expect(fileMock.mock.calls.map((c) => c[0]).sort()).toEqual(['listings/bc/a/1-a.jpg', 'listings/c/ab/1-a.jpg'])
+  })
+
+  it('serialises an accepted offer to exactly this JSON (golden — any drift in the accepted-offer contract fails here)', async () => {
+    listings['l1'] = listing()
+    const [out] = await enrichExternalHarvestOffers([{ id: 'o1', data: acceptedOffer() }])
+    expect(JSON.stringify(out)).toBe(
+      '{"offerId":"o1","externalReference":"arom-po-1","listingId":"l1","status":"accepted","quantityKg":50,"unitPriceCdf":800,"currency":"CDF",' +
+        '"createdAt":"2026-09-01T00:00:00.000Z","updatedAt":"2026-09-02T00:00:00.000Z","invoiceId":"inv1",' +
+        '"seller":{"id":"farmer-1","displayName":"Jean Mbala"},' +
+        '"listing":{"commodity":"Ananas","commodityCode":"ananas","province":"Kongo Central","territory":"Mbanza-Ngungu",' +
+        '"thumbnail":{"url":"https://signed.example/fresh?exp=1789902000000","expiresAt":"2026-09-20T11:00:00.000Z"}}}',
+    )
+  })
+
+  it('ignores a listing photo whose object name contains a control character, and falls through to the next valid one', async () => {
+    listings['l1'] = listing({
+      photoUrls: [`https://storage.googleapis.com/${BUCKET}/listings/farmer-1/l1/a${String.fromCharCode(0)}b.jpg?X-Goog-Signature=x`, storedUrl('listings/farmer-1/l1/2-ok.jpg')],
+    })
+    const [out] = await enrichExternalHarvestOffers([{ id: 'o1', data: acceptedOffer() }])
+    expect(fileMock).toHaveBeenCalledTimes(1)
+    expect(fileMock).toHaveBeenCalledWith('listings/farmer-1/l1/2-ok.jpg')
+    expect(out.listing?.thumbnail?.url).toContain('signed.example')
   })
 })
