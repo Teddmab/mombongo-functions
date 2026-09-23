@@ -3,10 +3,10 @@ import { db } from '../lib/admin'
 
 /**
  * Fail-closed HMAC verification for partner-signed inbound requests —
- * mirrors verifyPawapayHmac (src/payments/pawapayWebhook.ts) exactly,
- * not the fail-open inline check in pawapayPayoutWebhook.ts/
- * pawapayRefundWebhook.ts. Missing partner, inactive partner, missing
- * secret, missing signature, or a mismatched signature are all "no".
+ * mirrors verifyPawapayWebhookSignature
+ * (src/payments/verifyPawapayWebhookSignature.ts) exactly. Missing
+ * partner, inactive partner, missing secret, missing signature, or a
+ * mismatched signature are all "no".
  */
 export async function verifyPartnerSignature(
   partnerId: string | undefined,
