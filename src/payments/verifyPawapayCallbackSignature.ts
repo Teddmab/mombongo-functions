@@ -219,10 +219,12 @@ export async function verifyPawapayCallbackSignature(input: VerifyPawapayCallbac
   const signatureBytes = parseSignatureHeader(signatureHeader, parsed.label)
   if (!signatureBytes) return false
 
-  // Try the cached key first; on a miss, force exactly one refetch (key
-  // rotation support) before giving up.
-  let pem = await getPawapayPublicKey(parsed.keyid)
-  if (!pem) pem = await getPawapayPublicKey(parsed.keyid, true)
+  // getPawapayPublicKey already refetches internally whenever the cache
+  // doesn't have this keyid (see pawapayPublicKeys.ts) — that alone
+  // handles key rotation, so calling it a second time with force:true
+  // here would just repeat the same fetch and double the outbound calls
+  // for a genuinely unknown keyid, for no additional chance of success.
+  const pem = await getPawapayPublicKey(parsed.keyid)
   if (!pem) return false
 
   try {

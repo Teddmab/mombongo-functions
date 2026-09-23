@@ -15,10 +15,11 @@ interface PawapayPublicKey {
  * warm invocations of the same function instance; a cold start just
  * refetches, which is fine for a fast HTTPS GET to a static-ish endpoint.
  *
- * Key rotation: if a callback's keyid isn't in the cache, callers should
- * force one refetch before giving up (see getPawapayPublicKey's `force`
- * param) — handles PawaPay rotating keys between our TTL refreshes without
- * waiting out the full TTL.
+ * Key rotation: getPawapayPublicKey refetches automatically whenever the
+ * requested keyid isn't in the current cache, even before the TTL expires
+ * — handles PawaPay rotating keys between our TTL refreshes without a
+ * caller needing to retry. `force` exists only for callers with their own
+ * reason to bypass a fresh cache (none currently do).
  */
 let cache: { keys: Map<string, PawapayPublicKey>; fetchedAt: number } | null = null
 const TTL_MS = 10 * 60 * 1000

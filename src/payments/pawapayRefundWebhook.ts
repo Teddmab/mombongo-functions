@@ -28,6 +28,20 @@ export const pawapayRefundWebhook = functions
     const feeUsd = extractPawapayFee(req.body)
     const now = admin.firestore.FieldValue.serverTimestamp()
 
+    // Guards against a legitimate PawaPay retry re-running the wallet
+    // debit below — found during the RFC 9421 migration's idempotency
+    // review: this handler previously had NO check of refunds/{refundId}'s
+    // existing status before processing a COMPLETED refund, so every
+    // redelivery of the same webhook would decrement the user's wallet
+    // again and create another duplicate transactions doc.
+    const refundRef = db.collection('refunds').doc(refundId)
+    const existingRefundSnap = await refundRef.get()
+    const existingRefundStatus = existingRefundSnap.data()?.status
+    if (existingRefundSnap.exists && (existingRefundStatus === 'completed' || existingRefundStatus === 'failed')) {
+      res.status(200).send('Already processed')
+      return
+    }
+
     // Look up the original deposit to find userId + amount
     const depositSnap = await db.collection('deposits').doc(depositId).get()
     const { userId, amountUsd } = depositSnap.exists
@@ -54,7 +68,7 @@ export const pawapayRefundWebhook = functions
           feeUsd,
           createdAt: now,
         })
-        tx.set(db.collection('refunds').doc(refundId), {
+        tx.set(refundRef, {
           refundId,
           depositId,
           userId,
@@ -65,7 +79,7 @@ export const pawapayRefundWebhook = functions
       })
     } else {
       // Refund FAILED — record it, wallet stays credited
-      await db.collection('refunds').doc(refundId).set({
+      await refundRef.set({
         refundId,
         depositId,
         userId,

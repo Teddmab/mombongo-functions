@@ -25,7 +25,13 @@ export const pawapayPayoutWebhook = functions
     const withdrawRef = db.collection('withdrawals').doc(payoutId)
     const withdrawSnap = await withdrawRef.get()
 
-    if (!withdrawSnap.exists || withdrawSnap.data()?.status === 'completed') {
+    // Guards both terminal states — a retry of an already-'failed' payout
+    // webhook must not re-run the wallet refund below (found during the
+    // RFC 9421 migration's idempotency review: the original guard only
+    // checked 'completed', so a legitimate PawaPay retry of a FAILED
+    // payout would double-credit the user's wallet on every redelivery).
+    const withdrawStatus = withdrawSnap.data()?.status
+    if (!withdrawSnap.exists || withdrawStatus === 'completed' || withdrawStatus === 'failed') {
       res.status(200).send('Already processed or not found')
       return
     }

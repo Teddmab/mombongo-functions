@@ -163,11 +163,11 @@ describe('verifyPawapayCallbackSignature', () => {
     expect(await verifyPawapayCallbackSignature(buildValidRequest())).toBe(false)
   })
 
-  it('forces exactly one refetch on an unknown keyid before failing closed (key rotation support)', async () => {
-    getKeyMock.mockResolvedValueOnce(null).mockResolvedValueOnce(EC_PUBLIC_PEM)
-    expect(await verifyPawapayCallbackSignature(buildValidRequest())).toBe(true)
-    expect(getKeyMock).toHaveBeenCalledTimes(2)
-    expect(getKeyMock).toHaveBeenNthCalledWith(2, expect.any(String), true)
+  it('looks up the key by keyid exactly once per verification — key rotation itself is handled inside getPawapayPublicKey (see pawapayPublicKeys.test.ts), not by retrying here', async () => {
+    getKeyMock.mockResolvedValue(EC_PUBLIC_PEM)
+    expect(await verifyPawapayCallbackSignature(buildValidRequest({ keyid: 'HTTP_EC_P256_KEY:2' }))).toBe(true)
+    expect(getKeyMock).toHaveBeenCalledTimes(1)
+    expect(getKeyMock).toHaveBeenCalledWith('HTTP_EC_P256_KEY:2')
   })
 
   it('rejects a malformed Signature-Input header instead of throwing', async () => {
