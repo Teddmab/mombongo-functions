@@ -5,8 +5,9 @@ import { verifyPartnerSignature } from './verifyPartnerSignature'
 /**
  * Inbound invoice intake for external partners (AROM first). Partner
  * signs the raw request body with a per-partner HMAC secret
- * (verifyPartnerSignature) — same fail-closed shape as
- * verifyPawapayWebhookSignature.
+ * (verifyPartnerSignature) — same fail-closed discipline as PawaPay's
+ * callback verification (verifyPawapayCallbackSignature.ts), though the
+ * two are unrelated trust relationships using different mechanisms.
  */
 export const createExternalInvoice = functions
   .region('europe-west1')

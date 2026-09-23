@@ -1,16 +1,24 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+const { verifyMock } = vi.hoisted(() => ({ verifyMock: vi.fn() }))
+
+vi.mock('../verifyPawapayCallbackSignature', () => ({
+  verifyPawapayCallbackSignature: verifyMock,
+}))
 
 vi.mock('../../lib/admin', () => ({
   admin: { firestore: { FieldValue: { increment: vi.fn() } } },
   db: {
+    // Throws unconditionally so tests can detect "business logic was
+    // reached" purely from this side effect, regardless of whether that's
+    // the expected (verification failed) or unexpected (verification
+    // succeeded) outcome for a given test.
     collection: () => {
-      throw new Error('business logic must not run when signature verification fails')
+      throw new Error('BUSINESS_LOGIC_REACHED')
     },
   },
   functions: {
-    runWith: vi.fn(() => ({
-      region: vi.fn(() => ({ https: { onRequest: vi.fn((h: unknown) => h) } })),
-    })),
+    region: vi.fn(() => ({ https: { onRequest: vi.fn((h: unknown) => h) } })),
     logger: { error: vi.fn() },
   },
 }))
@@ -29,35 +37,51 @@ function fakeRes() {
   return res
 }
 
-const ORIGINAL_SECRET = process.env.PAWAPAY_WEBHOOK_SECRET
+function fakeReq(overrides: Record<string, unknown> = {}) {
+  return {
+    method: 'POST',
+    path: '/pawapayWebhook',
+    headers: { host: 'europe-west1-mombongo-dev.cloudfunctions.net' },
+    body: { depositId: 'dep1', status: 'COMPLETED' },
+    rawBody: Buffer.from(JSON.stringify({ depositId: 'dep1', status: 'COMPLETED' })),
+    ...overrides,
+  }
+}
 
-describe('pawapayWebhook — signature enforcement (fail closed, real wiring)', () => {
+describe('pawapayWebhook — RFC 9421 signature enforcement (fail closed, real wiring)', () => {
   beforeEach(() => {
-    process.env.PAWAPAY_WEBHOOK_SECRET = 'real-secret'
-  })
-  afterEach(() => {
-    process.env.PAWAPAY_WEBHOOK_SECRET = ORIGINAL_SECRET
+    verifyMock.mockReset()
   })
 
-  it('rejects a request with no signature header at all, never reaching business logic', async () => {
-    const req = { headers: {}, body: { depositId: 'dep1', status: 'COMPLETED' } }
+  it('rejects the request when verification fails, never reaching business logic', async () => {
+    verifyMock.mockResolvedValue(false)
     const res = fakeRes()
-    await (pawapayWebhook as unknown as Handler)(req, res)
+    await (pawapayWebhook as unknown as Handler)(fakeReq(), res)
     expect(res.statusCode).toBe(401)
   })
 
-  it('rejects a request with an incorrect signature', async () => {
-    const req = { headers: { 'x-pawapay-signature': 'not-the-right-hmac' }, body: { depositId: 'dep1', status: 'COMPLETED' } }
+  it('passes method, authority, path and the raw body Buffer to the verifier — not JSON.stringify(req.body)', async () => {
+    verifyMock.mockResolvedValue(false)
+    const req = fakeReq()
+    await (pawapayWebhook as unknown as Handler)(req, fakeRes())
+    expect(verifyMock).toHaveBeenCalledWith(expect.objectContaining({
+      method: 'POST',
+      authority: 'europe-west1-mombongo-dev.cloudfunctions.net',
+      path: '/pawapayWebhook',
+      rawBody: req.rawBody,
+    }))
+  })
+
+  it('rejects when rawBody is missing entirely (e.g. req.rawBody unavailable), never reaching business logic', async () => {
+    verifyMock.mockResolvedValue(false)
     const res = fakeRes()
-    await (pawapayWebhook as unknown as Handler)(req, res)
+    await (pawapayWebhook as unknown as Handler)(fakeReq({ rawBody: undefined }), res)
     expect(res.statusCode).toBe(401)
   })
 
-  it('rejects even when the webhook secret is unset, regardless of signature header', async () => {
-    delete process.env.PAWAPAY_WEBHOOK_SECRET
-    const req = { headers: { 'x-pawapay-signature': 'anything' }, body: { depositId: 'dep1', status: 'COMPLETED' } }
+  it('proceeds to business logic once verification succeeds', async () => {
+    verifyMock.mockResolvedValue(true)
     const res = fakeRes()
-    await (pawapayWebhook as unknown as Handler)(req, res)
-    expect(res.statusCode).toBe(401)
+    await expect((pawapayWebhook as unknown as Handler)(fakeReq(), res)).rejects.toThrow('BUSINESS_LOGIC_REACHED')
   })
 })

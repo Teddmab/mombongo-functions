@@ -1,15 +1,18 @@
 import { admin, db, functions } from '../lib/admin'
 import { extractPawapayFee } from './pawapayFee'
-import { verifyPawapayWebhookSignature } from './verifyPawapayWebhookSignature'
+import { verifyPawapayCallbackSignature } from './verifyPawapayCallbackSignature'
 
 export const pawapayPayoutWebhook = functions
-  .runWith({ secrets: ['PAWAPAY_WEBHOOK_SECRET'] })
   .region('europe-west1')
   .https.onRequest(async (req, res) => {
-    const signature = req.headers['x-pawapay-signature'] as string | undefined
-    const secret = process.env.PAWAPAY_WEBHOOK_SECRET
-
-    if (!verifyPawapayWebhookSignature(secret, signature, JSON.stringify(req.body))) {
+    const valid = await verifyPawapayCallbackSignature({
+      method: req.method,
+      authority: req.headers.host ?? '',
+      path: req.path,
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      rawBody: (req as unknown as { rawBody?: Buffer }).rawBody,
+    })
+    if (!valid) {
       res.status(401).send('Invalid signature')
       return
     }
