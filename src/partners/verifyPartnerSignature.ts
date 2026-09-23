@@ -2,11 +2,14 @@ import * as crypto from 'crypto'
 import { db } from '../lib/admin'
 
 /**
- * Fail-closed HMAC verification for partner-signed inbound requests —
- * mirrors verifyPawapayWebhookSignature
- * (src/payments/verifyPawapayWebhookSignature.ts) exactly. Missing
- * partner, inactive partner, missing secret, missing signature, or a
- * mismatched signature are all "no".
+ * Fail-closed HMAC verification for partner-signed inbound requests. This
+ * is a genuinely separate trust relationship from PawaPay's callbacks
+ * (partners signing their own calls into Mombongo, with a per-partner
+ * shared secret) — it's unrelated to, and not affected by, PawaPay's
+ * callback signing moving to RFC 9421 asymmetric signatures (see
+ * src/payments/verifyPawapayCallbackSignature.ts). Missing partner,
+ * inactive partner, missing secret, missing signature, or a mismatched
+ * signature are all "no".
  */
 export async function verifyPartnerSignature(
   partnerId: string | undefined,

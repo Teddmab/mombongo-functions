@@ -1,15 +1,18 @@
 import { admin, db, functions } from '../lib/admin'
 import { extractPawapayFee } from './pawapayFee'
-import { verifyPawapayWebhookSignature } from './verifyPawapayWebhookSignature'
+import { verifyPawapayCallbackSignature } from './verifyPawapayCallbackSignature'
 
 export const pawapayPayoutWebhook = functions
-  .runWith({ secrets: ['PAWAPAY_WEBHOOK_SECRET'] })
   .region('europe-west1')
   .https.onRequest(async (req, res) => {
-    const signature = req.headers['x-pawapay-signature'] as string | undefined
-    const secret = process.env.PAWAPAY_WEBHOOK_SECRET
-
-    if (!verifyPawapayWebhookSignature(secret, signature, JSON.stringify(req.body))) {
+    const valid = await verifyPawapayCallbackSignature({
+      method: req.method,
+      authority: req.headers.host ?? '',
+      path: req.path,
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      rawBody: (req as unknown as { rawBody?: Buffer }).rawBody,
+    })
+    if (!valid) {
       res.status(401).send('Invalid signature')
       return
     }
@@ -22,7 +25,13 @@ export const pawapayPayoutWebhook = functions
     const withdrawRef = db.collection('withdrawals').doc(payoutId)
     const withdrawSnap = await withdrawRef.get()
 
-    if (!withdrawSnap.exists || withdrawSnap.data()?.status === 'completed') {
+    // Guards both terminal states — a retry of an already-'failed' payout
+    // webhook must not re-run the wallet refund below (found during the
+    // RFC 9421 migration's idempotency review: the original guard only
+    // checked 'completed', so a legitimate PawaPay retry of a FAILED
+    // payout would double-credit the user's wallet on every redelivery).
+    const withdrawStatus = withdrawSnap.data()?.status
+    if (!withdrawSnap.exists || withdrawStatus === 'completed' || withdrawStatus === 'failed') {
       res.status(200).send('Already processed or not found')
       return
     }
