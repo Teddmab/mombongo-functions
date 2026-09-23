@@ -555,6 +555,8 @@ export { saveCulture }                   from './exploitation/saveCulture'
 export { deleteCulture }                 from './exploitation/deleteCulture'
 export { deleteMyExploitation }          from './exploitation/deleteMyExploitation'
 export { getExploitationPhotoUploadUrl } from './exploitation/getExploitationPhotoUploadUrl'
+export { adminSaveExploitation }         from './exploitation/adminSaveExploitation'
+export { adminSaveCulture }              from './exploitation/adminSaveCulture'
 
 // ─── Crop calendar / weather alerts ─────────────────────────────────────────
 // These were already live in mombongo-dev but had never been committed to
