@@ -17,12 +17,15 @@ import { createCheckoutForInvoiceCore } from './createCheckoutForInvoiceCore'
  * real payment) — mobile_money is the only implemented method today.
  */
 export const createExternalInvoiceCheckout = functions
-  // PAWAPAY_API_KEY_SANDBOX is read via process.env below but deliberately
-  // not declared here — it doesn't exist in Secret Manager yet, and
-  // runWith({secrets}) fails the whole deploy if a declared secret is
-  // missing (see the mombongo-dev outage post-mortem, 2026-09-18). Add it
-  // here once Teddy provisions the real secret.
-  .runWith({ secrets: ['PAWAPAY_API_KEY'] })
+  // PAWAPAY_API_KEY_SANDBOX must exist in Secret Manager before this is
+  // deployed — runWith({secrets}) fails the whole deploy if a declared
+  // secret is missing (see the mombongo-dev outage post-mortem,
+  // 2026-09-18). Provisioning the actual secret value is a manual step
+  // for Teddy, not part of this change — until it's created, testMode
+  // checkouts correctly fail closed with PawapaySandboxNotConfiguredError
+  // (see initiateExternalInvoiceMobileMoney.ts) rather than deploying at
+  // all with a dangling reference.
+  .runWith({ secrets: ['PAWAPAY_API_KEY', 'PAWAPAY_API_KEY_SANDBOX'] })
   .region('europe-west1')
   .https.onRequest(async (req, res) => {
     if (req.method !== 'POST') {
