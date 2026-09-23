@@ -8,9 +8,9 @@ import { createCheckoutForInvoiceCore } from '../partners/createCheckoutForInvoi
  * context.auth.uid here; no partner doc to resolve it from.
  */
 export const payHarvestInvoice = functions
-  // See createExternalInvoiceCheckout.ts for why PAWAPAY_API_KEY_SANDBOX
-  // isn't declared here yet.
-  .runWith({ secrets: ['PAWAPAY_API_KEY'] })
+  // See createExternalInvoiceCheckout.ts for the Secret Manager
+  // provisioning prerequisite before this can deploy.
+  .runWith({ secrets: ['PAWAPAY_API_KEY', 'PAWAPAY_API_KEY_SANDBOX'] })
   .region('europe-west1')
   .https.onCall(async (data, context) => {
     const uid = context.auth?.uid
