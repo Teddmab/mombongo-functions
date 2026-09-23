@@ -39,6 +39,15 @@ vi.mock('../../partners/markExternalInvoicePaid', () => ({
   markExternalInvoiceFailed: markFailedMock,
 }))
 
+// This file tests merchantUid resolution / business logic, not signature
+// verification (that's verifyPawapayWebhookSignature.test.ts) — stub it
+// to always pass so these requests reach that business logic, same as
+// every request here already implicitly assumed under the old fail-open
+// behavior this fix replaced.
+vi.mock('../verifyPawapayWebhookSignature', () => ({
+  verifyPawapayWebhookSignature: vi.fn(() => true),
+}))
+
 import { pawapayWebhook } from '../pawapayWebhook'
 
 type Handler = (req: unknown, res: unknown) => Promise<void>

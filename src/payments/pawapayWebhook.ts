@@ -1,7 +1,7 @@
-import * as crypto from 'crypto'
 import { admin, db, functions } from '../lib/admin'
 import { markExternalInvoicePaid, markExternalInvoiceFailed } from '../partners/markExternalInvoicePaid'
 import { extractPawapayFee } from './pawapayFee'
+import { verifyPawapayWebhookSignature } from './verifyPawapayWebhookSignature'
 
 export const pawapayWebhook = functions
   .runWith({ secrets: ['PAWAPAY_WEBHOOK_SECRET'] })
@@ -10,15 +10,9 @@ export const pawapayWebhook = functions
     const signature = req.headers['x-pawapay-signature'] as string | undefined
     const secret = process.env.PAWAPAY_WEBHOOK_SECRET
 
-    if (secret && signature) {
-      const expected = crypto
-        .createHmac('sha256', secret)
-        .update(JSON.stringify(req.body))
-        .digest('hex')
-      if (signature !== expected) {
-        res.status(401).send('Invalid signature')
-        return
-      }
+    if (!verifyPawapayWebhookSignature(secret, signature, JSON.stringify(req.body))) {
+      res.status(401).send('Invalid signature')
+      return
     }
 
     const { depositId, status } = req.body as { depositId: string; status: string }
