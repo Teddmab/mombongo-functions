@@ -134,4 +134,21 @@ describe('adminCreatePerson', () => {
     }, { auth: { uid: 'admin1' } });
     expect(merchant.uid).not.toBe(farmer.uid);
   });
+
+  it('stores an optional mobile money number and provider as plain unverified fields', async () => {
+    const result = await call({
+      ...VALID_FARMER, mobileMoneyNumber: '+243811234567', mobileMoneyProvider: 'mpesa',
+    }, { auth: { uid: 'admin1' } });
+    expect(users[result.uid]).toMatchObject({ mobileMoneyNumber: '+243811234567', mobileMoneyProvider: 'mpesa' });
+  });
+
+  it('defaults mobile money fields to null when not supplied', async () => {
+    const result = await call(VALID_FARMER, { auth: { uid: 'admin1' } });
+    expect(users[result.uid]).toMatchObject({ mobileMoneyNumber: null, mobileMoneyProvider: null });
+  });
+
+  it('rejects an unrecognized mobile money provider', async () => {
+    await expect(call({ ...VALID_FARMER, mobileMoneyProvider: 'mpesa-plus' }, { auth: { uid: 'admin1' } }))
+      .rejects.toThrow('mobileMoneyProvider must be one of');
+  });
 });

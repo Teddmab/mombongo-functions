@@ -6,6 +6,13 @@ type CreatableRole = typeof CREATABLE_ROLES[number]
 const CONSENT_METHODS = ['phone', 'in_person', 'field_agent'] as const
 type ConsentMethod = typeof CONSENT_METHODS[number]
 
+// Matches the confirmed 3-operator set this platform's PawaPay integration
+// actually supports (initiateWithdraw.ts / initiateExternalInvoiceMobileMoney.ts's
+// OPERATOR_MAP) — validated here only as a sanity check on the value, not
+// because this field is used for any payment call from this function.
+const MOBILE_MONEY_OPERATORS = ['mpesa', 'airtel', 'orange'] as const
+type MobileMoneyOperator = typeof MOBILE_MONEY_OPERATORS[number]
+
 interface AdminCreatePersonInput {
   role: CreatableRole
   fullName: string
@@ -13,6 +20,15 @@ interface AdminCreatePersonInput {
   email?: string
   province?: string // farmer only
   businessType?: string // merchant only
+  /**
+   * Captured as plain, UNVERIFIED contact information only — see V2-03
+   * (farmer-mobile-money-verification.md). This field carries no
+   * possession/ownership verification and must never be treated as
+   * payout-eligible by anything reading it. The real verified-payout
+   * system (farmer_payment_methods) is a separate, not-yet-built model.
+   */
+  mobileMoneyNumber?: string
+  mobileMoneyProvider?: MobileMoneyOperator
   consentMethod: ConsentMethod
   consentAt: string // ISO
   note?: string
@@ -58,13 +74,16 @@ export const adminCreatePerson = functions
       throw new functions.https.HttpsError('permission-denied', 'Admin only')
 
     const {
-      role, fullName, phone, email, province, businessType, consentMethod, consentAt, note,
+      role, fullName, phone, email, province, businessType,
+      mobileMoneyNumber, mobileMoneyProvider, consentMethod, consentAt, note,
     } = (data ?? {}) as Partial<AdminCreatePersonInput>
 
     if (!role || !CREATABLE_ROLES.includes(role))
       throw new functions.https.HttpsError('invalid-argument', `role must be one of ${CREATABLE_ROLES.join(', ')}`)
     if (!fullName?.trim()) throw new functions.https.HttpsError('invalid-argument', 'fullName required')
     if (!phone?.trim()) throw new functions.https.HttpsError('invalid-argument', 'phone required')
+    if (mobileMoneyProvider && !MOBILE_MONEY_OPERATORS.includes(mobileMoneyProvider))
+      throw new functions.https.HttpsError('invalid-argument', `mobileMoneyProvider must be one of ${MOBILE_MONEY_OPERATORS.join(', ')}`)
     if (!consentMethod || !CONSENT_METHODS.includes(consentMethod))
       throw new functions.https.HttpsError('invalid-argument', `consentMethod must be one of ${CONSENT_METHODS.join(', ')}`)
     if (!consentAt) throw new functions.https.HttpsError('invalid-argument', 'consentAt required')
@@ -117,8 +136,8 @@ export const adminCreatePerson = functions
       kycVerifiedAt: now,
       onboardingComplete: role === 'farmer' ? false : true,
       primaryGoal: null,
-      mobileMoneyNumber: null,
-      mobileMoneyProvider: null,
+      mobileMoneyNumber: mobileMoneyNumber?.trim() || null,
+      mobileMoneyProvider: mobileMoneyProvider ?? null,
       fcmTokens: [],
       walletUsd: 0,
       walletCdf: 0,
