@@ -43,7 +43,8 @@ function signPayload(secret: string, payload: object): string {
   return crypto.createHmac('sha256', secret).update(JSON.stringify(payload)).digest('hex')
 }
 
-export async function sendSignedPartnerWebhook(input: SendSignedPartnerWebhookInput): Promise<void> {
+/** Resolves true once the partner acknowledged (2xx), false after the attempts were exhausted and dead-lettered. */
+export async function sendSignedPartnerWebhook(input: SendSignedPartnerWebhookInput): Promise<boolean> {
   // Both webhook kinds land on the same partner webhookUrl with no other
   // way to tell them apart — a partner would otherwise have to infer the
   // event from which fields happen to be present. Stamping `event` here,
@@ -62,7 +63,7 @@ export async function sendSignedPartnerWebhook(input: SendSignedPartnerWebhookIn
       })
       if (res.ok) {
         await input.onSuccess()
-        return
+        return true
       }
       throw new Error(`Partner webhook returned ${res.status}`)
     } catch (err) {
@@ -80,4 +81,5 @@ export async function sendSignedPartnerWebhook(input: SendSignedPartnerWebhookIn
       }
     }
   }
+  return false
 }

@@ -33,12 +33,22 @@ export const onExternalInvoicePaid = functions
  * Also exported standalone so SAI-05's adminRetryPartnerNotification can
  * call it directly for a manual retry, without needing to re-trigger a
  * Firestore write.
+ *
+ * Only a final status (paid/failed) is ever sent — the contract's
+ * paymentComplete.status enum has no other value. The trigger above already
+ * guarantees this; the guard here protects the manual-retry path, which
+ * previously sent `status: "pending"` for a failed invoice_issued delivery.
+ * Resolves true only when the partner acknowledged delivery.
  */
 export async function notifyPartnerPaymentComplete(
   invoiceId: string,
   invoiceSnap: FirebaseFirestore.DocumentSnapshot,
-): Promise<void> {
+): Promise<boolean> {
   const invoice = invoiceSnap.data()!
+  if (invoice.status !== 'paid' && invoice.status !== 'failed') {
+    functions.logger.error(`notifyPartnerPaymentComplete: invoice ${invoiceId} is not final (status=${invoice.status}); not sent`)
+    return false
+  }
   const partnerSnap = await db.collection('partners').doc(invoice.partnerId).get()
   const webhookUrl = partnerSnap.data()?.webhookUrl as string | undefined
   // Separate from SAI-01's inbound hmacSecret — see this story's audit
@@ -47,7 +57,7 @@ export async function notifyPartnerPaymentComplete(
 
   if (!webhookUrl || !outboundSecret) {
     functions.logger.error(`No webhookUrl/outboundHmacSecret configured for partner ${invoice.partnerId}`)
-    return
+    return false
   }
 
   const payload: NotifyPayload = {
@@ -57,7 +67,7 @@ export async function notifyPartnerPaymentComplete(
     paidAt: new Date().toISOString(),
   }
 
-  await sendSignedPartnerWebhook({
+  return sendSignedPartnerWebhook({
     webhookUrl,
     outboundSecret,
     payload,

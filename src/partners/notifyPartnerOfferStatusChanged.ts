@@ -40,21 +40,21 @@ interface OfferStatusChangedPayload {
 export async function notifyPartnerOfferStatusChanged(
   offerId: string,
   status: 'accepted' | 'declined',
-): Promise<void> {
+): Promise<boolean> {
   const offerSnap = await db.collection('harvest_offers').doc(offerId).get()
   if (!offerSnap.exists) {
     functions.logger.error(`notifyPartnerOfferStatusChanged: offer ${offerId} not found`)
-    return
+    return false
   }
   const offer = offerSnap.data()!
-  if (!offer.partnerId) return // in-app offer — nothing to notify
+  if (!offer.partnerId) return false // in-app offer — nothing to notify
 
   const partnerSnap = await db.collection('partners').doc(offer.partnerId).get()
   const webhookUrl = partnerSnap.data()?.webhookUrl as string | undefined
   const outboundSecret = partnerSnap.data()?.outboundHmacSecret as string | undefined
   if (!webhookUrl || !outboundSecret) {
     functions.logger.error(`No webhookUrl/outboundHmacSecret configured for partner ${offer.partnerId}`)
-    return
+    return false
   }
 
   const payload: OfferStatusChangedPayload = {
@@ -71,7 +71,7 @@ export async function notifyPartnerOfferStatusChanged(
     currency: 'CDF',
   }
 
-  await sendSignedPartnerWebhook({
+  return sendSignedPartnerWebhook({
     webhookUrl,
     outboundSecret,
     payload,
