@@ -85,3 +85,33 @@ describe('notifyPartnerInvoiceIssued', () => {
     expect(invoiceUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ invoiceIssuedNotifiedAt: 'SERVER_TIMESTAMP' }))
   })
 })
+
+describe('notifyPartnerInvoiceIssued — retry safety (retry P0)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    for (const s of [invoices, partners]) for (const k of Object.keys(s)) delete s[k]
+  })
+
+  it('a retry re-sends the same business event: same invoiceId, eventId and schemaVersion', async () => {
+    invoices['inv1'] = { partnerId: 'arom', farmerId: 'f1', listingId: 'l1', amountUsd: 42, quantityKg: 25, commodity: 'Manioc' }
+    partners['arom'] = { webhookUrl: 'https://arom.cd/hook', outboundHmacSecret: 'secret' }
+    sendMock.mockResolvedValue(true)
+    await notifyPartnerInvoiceIssued('inv1')
+    await notifyPartnerInvoiceIssued('inv1')
+    const [first, second] = sendMock.mock.calls.map(([input]) => input)
+    expect(second.kind).toBe('invoice_issued')
+    expect(second.payload.eventId).toBe(first.payload.eventId)
+    expect(second.payload.invoiceId).toBe('inv1')
+    expect(second.payload.schemaVersion).toBe(first.payload.schemaVersion)
+  })
+
+  it('reports whether the partner acknowledged, and false when nothing could be sent', async () => {
+    invoices['inv1'] = { partnerId: 'arom', farmerId: 'f1', listingId: 'l1', amountUsd: 42, quantityKg: 25, commodity: 'Manioc' }
+    partners['arom'] = { webhookUrl: 'https://arom.cd/hook', outboundHmacSecret: 'secret' }
+    sendMock.mockResolvedValue(false)
+    await expect(notifyPartnerInvoiceIssued('inv1')).resolves.toBe(false)
+    sendMock.mockResolvedValue(true)
+    await expect(notifyPartnerInvoiceIssued('inv1')).resolves.toBe(true)
+    await expect(notifyPartnerInvoiceIssued('missing')).resolves.toBe(false)
+  })
+})

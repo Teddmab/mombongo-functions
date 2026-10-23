@@ -48,3 +48,24 @@ describe('notifyPartnerPaymentComplete (refactored onto sendSignedPartnerWebhook
     expect(invoiceUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ notifiedAt: 'SERVER_TIMESTAMP' }))
   })
 })
+
+describe('notifyPartnerPaymentComplete — final status guard (retry P0)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    for (const k of Object.keys(partners)) delete partners[k]
+    partners['arom'] = { webhookUrl: 'https://arom.cd/hook', outboundHmacSecret: 'secret' }
+  })
+
+  it.each(['pending', 'checkout_created'])('never sends payment_complete for a %s invoice', async (status) => {
+    const invoiceSnap = { data: () => ({ partnerId: 'arom', status, amountUsd: 10 }), ref: { update: invoiceUpdateMock } } as unknown as FirebaseFirestore.DocumentSnapshot
+    await expect(notifyPartnerPaymentComplete('inv1', invoiceSnap)).resolves.toBe(false)
+    expect(sendMock).not.toHaveBeenCalled()
+  })
+
+  it.each(['paid', 'failed'])('still sends payment_complete for a %s invoice (existing behaviour)', async (status) => {
+    sendMock.mockResolvedValue(true)
+    const invoiceSnap = { data: () => ({ partnerId: 'arom', status, amountUsd: 10, externalInvoiceId: 'ext1' }), ref: { update: invoiceUpdateMock } } as unknown as FirebaseFirestore.DocumentSnapshot
+    await expect(notifyPartnerPaymentComplete('inv1', invoiceSnap)).resolves.toBe(true)
+    expect(sendMock).toHaveBeenCalledWith(expect.objectContaining({ kind: 'payment_complete', payload: expect.objectContaining({ status, externalInvoiceId: 'ext1' }) }))
+  })
+})

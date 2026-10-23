@@ -108,3 +108,32 @@ describe('sendSignedPartnerWebhook', () => {
     expect(calls[0][1].headers['x-mombongo-signature']).not.toBe(calls[1][1].headers['x-mombongo-signature'])
   })
 })
+
+describe('sendSignedPartnerWebhook — outcome and redaction (retry P0)', () => {
+  beforeEach(() => { vi.clearAllMocks(); vi.useRealTimers() })
+  afterAll(() => { global.fetch = originalFetch })
+
+  it('resolves true when the partner acknowledged', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true }) as unknown as typeof fetch
+    await expect(sendSignedPartnerWebhook({
+      webhookUrl: 'https://x.com/hook', outboundSecret: 'top-secret-value', payload: { a: 1 },
+      kind: 'invoice_issued', partnerId: 'arom', invoiceId: 'inv1', onSuccess: vi.fn(),
+    })).resolves.toBe(true)
+  })
+
+  it('resolves false after exhaustion, dead-letters with the kind, and never logs or stores the secret or body', async () => {
+    vi.useFakeTimers()
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 503 }) as unknown as typeof fetch
+    const promise = sendSignedPartnerWebhook({
+      webhookUrl: 'https://x.com/hook', outboundSecret: 'top-secret-value', payload: { farmerId: 'farmer-9', amountUsd: 1425 },
+      kind: 'invoice_issued', partnerId: 'arom', invoiceId: 'inv1', onSuccess: vi.fn(),
+    })
+    await vi.runAllTimersAsync()
+    await expect(promise).resolves.toBe(false)
+    expect(addMock).toHaveBeenCalledOnce()
+    expect(addMock).toHaveBeenCalledWith(expect.objectContaining({ invoiceId: 'inv1', partnerId: 'arom', kind: 'invoice_issued' }))
+    const { functions } = await import('../../lib/admin')
+    const recorded = JSON.stringify([vi.mocked(functions.logger.warn).mock.calls, addMock.mock.calls])
+    expect(recorded).not.toMatch(/top-secret-value|farmer-9|1425/)
+  })
+})

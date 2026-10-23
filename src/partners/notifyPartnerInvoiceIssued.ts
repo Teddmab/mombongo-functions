@@ -57,16 +57,16 @@ interface InvoiceIssuedPayload {
  * accepts a checkout call immediately after this event), which is a
  * documented, not-yet-closed gap.
  */
-export async function notifyPartnerInvoiceIssued(invoiceId: string): Promise<void> {
+export async function notifyPartnerInvoiceIssued(invoiceId: string): Promise<boolean> {
   const invoiceSnap = await db.collection('external_invoices').doc(invoiceId).get()
   if (!invoiceSnap.exists) {
     functions.logger.error(`notifyPartnerInvoiceIssued: invoice ${invoiceId} not found`)
-    return
+    return false
   }
   const invoice = invoiceSnap.data()!
   if (!invoice.partnerId) {
     functions.logger.error(`notifyPartnerInvoiceIssued: invoice ${invoiceId} has no partnerId`)
-    return
+    return false
   }
 
   const partnerSnap = await db.collection('partners').doc(invoice.partnerId).get()
@@ -74,7 +74,7 @@ export async function notifyPartnerInvoiceIssued(invoiceId: string): Promise<voi
   const outboundSecret = partnerSnap.data()?.outboundHmacSecret as string | undefined
   if (!webhookUrl || !outboundSecret) {
     functions.logger.error(`No webhookUrl/outboundHmacSecret configured for partner ${invoice.partnerId}`)
-    return
+    return false
   }
 
   const quantityKg = invoice.quantityKg ?? 0
@@ -96,7 +96,7 @@ export async function notifyPartnerInvoiceIssued(invoiceId: string): Promise<voi
     commodity: invoice.commodity ?? '',
   }
 
-  await sendSignedPartnerWebhook({
+  return sendSignedPartnerWebhook({
     webhookUrl,
     outboundSecret,
     payload,
